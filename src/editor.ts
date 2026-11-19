@@ -1166,6 +1166,14 @@ export class Editor {
 
   // ------------------------------------------------------------ collaboration
 
+  /** Resize a sticky note (from its bottom-right corner). */
+  resizeSticky(id: string, w: number, h: number): void {
+    if (this.readOnly) return this.flashReadOnly();
+    this.doc.undo.stopCapturing();
+    this.doc.resizeSticky(id, w, h);
+    this.doc.undo.stopCapturing();
+  }
+
   setTool(tool: 'select' | 'pan'): void {
     this.tool = tool;
     this.emit();

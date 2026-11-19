@@ -1,5 +1,5 @@
 import * as Y from 'yjs';
-import { Comment, Reaction, Connection, DEFAULT_THEME, MapFile, MapNode, GroupKind, NodeStyle, Theme, isClaim, isGroup } from './types';
+import { Comment, Reaction, Connection, DEFAULT_THEME, MapFile, MapNode, GroupKind, NodeStyle, Theme, isClaim, isGroup, STICKY, stickyW } from './types';
 
 type YNode = Y.Map<unknown>;
 
@@ -392,6 +392,16 @@ export class MapDoc {
     if (isGroup(this.get(id))) this.update(id, { kind });
   }
 
+  /** Resize a sticky note, keeping its top-left corner where it is. */
+  resizeSticky(id: string, w: number, h: number): void {
+    const n = this.get(id);
+    if (!n || n.kind !== 'sticky') return;
+    const oldW = stickyW(n);
+    const nw = Math.min(STICKY.max, Math.max(STICKY.min, Math.round(w)));
+    const nh = Math.min(STICKY.max, Math.max(STICKY.min, Math.round(h)));
+    this.update(id, { w: nw, h: nh, x: Math.round((n.x ?? 0) + (nw - oldW) / 2) });
+  }
+
   setRootPosition(id: string, x: number, y: number): void {
     this.update(id, { x: Math.round(x), y: Math.round(y) });
   }
@@ -507,6 +517,8 @@ export class MapDoc {
       style: n.style,
       note: n.note,
       link: n.link,
+      w: n.w,
+      h: n.h,
       children: (byParent.get(n.id) ?? []).map(build),
     });
     return top.map((id) => this.get(id)).filter((n): n is MapNode => !!n).map(build);
@@ -526,7 +538,9 @@ export class MapDoc {
       this.put({
         id, kind: c.kind, parent, order: this.orderAfter(parent), text: c.text ?? '',
         implicit: c.implicit || undefined, collapsed: c.collapsed || undefined,
-        style: c.style, note: c.note, link: c.link, ...extra,
+        style: c.style, note: c.note, link: c.link,
+        ...(c.kind === 'sticky' && c.w ? { w: c.w, h: c.h } : {}),
+        ...extra,
       });
       for (const ch of c.children ?? []) insert(ch, id);
       return id;
@@ -625,6 +639,8 @@ export interface ClipNode {
   style?: NodeStyle;
   note?: string;
   link?: string;
+  w?: number;
+  h?: number;
   children: ClipNode[];
 }
 

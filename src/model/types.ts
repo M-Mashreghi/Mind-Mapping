@@ -40,6 +40,9 @@ export interface MapNode {
   /** Root/sticky only: position of the top-centre of the box, in map units. */
   x?: number;
   y?: number;
+  /** Sticky note only: its size in map units (a square paper note by default). */
+  w?: number;
+  h?: number;
   /** Manual nudge applied to this node and everything below it. */
   dx?: number;
   dy?: number;
@@ -124,6 +127,11 @@ export const isGroup = (n: MapNode | undefined): boolean =>
   !!n && (n.kind === 'reason' || n.kind === 'objection');
 
 export const isClaim = (n: MapNode | undefined): boolean => !!n && n.kind === 'claim';
+
+/** Sticky notes are square paper notes: about 3×3 inches next to the claim boxes. */
+export const STICKY = { size: 240, min: 120, max: 800 };
+export const stickyW = (n: MapNode): number => Math.min(STICKY.max, Math.max(STICKY.min, Math.round(n.w ?? STICKY.size)));
+export const stickyH = (n: MapNode): number => Math.min(STICKY.max, Math.max(STICKY.min, Math.round(n.h ?? n.w ?? STICKY.size)));
 
 /** Claims and sticky notes: nodes that carry text in a box. */
 export const isTextNode = (n: MapNode | undefined): boolean => !!n && (n.kind === 'claim' || n.kind === 'sticky');

@@ -2566,3 +2566,45 @@ legend {
   flex: 1 0 100%;
   margin-top: 0;
 }
+
+/* ------------------------------------------------------------ sticky notes: square paper */
+
+.sticky {
+  align-items: center;
+  border: 0;
+  border-radius: 2px 2px 3px 18px / 2px 2px 3px 6px;
+  background: linear-gradient(176deg, #fff7b8 0%, #fff19a 55%, #fbe77e 100%);
+  box-shadow:
+    0 1px 1px rgba(80, 60, 0, 0.12),
+    0 10px 14px -8px rgba(60, 45, 0, 0.45);
+  transform: rotate(-1deg);
+}
+
+/* A strip at the top, where real notes are glued, is a shade darker. */
+.sticky::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 14%;
+  background: rgba(150, 120, 0, 0.06);
+  pointer-events: none;
+}
+
+.sticky .claim-text {
+  width: 100%;
+  max-height: 100%;
+}
+
+.sticky-resize {
+  position: absolute;
+  right: -7px;
+  bottom: -7px;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  background: var(--surface);
+  border: 2px solid var(--brand);
+  cursor: nwse-resize;
+  z-index: 3;
+  touch-action: none;
+}

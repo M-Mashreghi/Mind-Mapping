@@ -26,6 +26,18 @@ export interface Colors {
   objection: string;
   objectionSoft: string;
   objectionText: string;
+  /** The argument-map look: premise boxes, brackets and the main claim pill. */
+  reasonFill: string;
+  reasonLine: string;
+  reasonInk: string;
+  objectionFill: string;
+  objectionLine: string;
+  objectionInk: string;
+  rootFill: string;
+  rootLine: string;
+  rootInk: string;
+  badgeBg: string;
+  badgeInk: string;
 }
 
 export function readColors(el: Element): Colors {
@@ -47,6 +59,17 @@ export function readColors(el: Element): Colors {
     objection,
     objectionSoft: v('--objection-soft', 'rgba(217,67,63,0.08)'),
     objectionText: v('--objection-text', objection),
+    reasonFill: v('--reason-fill', '#e3f4df'),
+    reasonLine: v('--reason-line', '#8ccc84'),
+    reasonInk: v('--reason-ink', '#1d4a1c'),
+    objectionFill: v('--objection-fill', '#fcdcd6'),
+    objectionLine: v('--objection-line', '#ea8a7e'),
+    objectionInk: v('--objection-ink', '#6b1c13'),
+    rootFill: v('--root-fill', '#1f2126'),
+    rootLine: v('--root-line', '#1f2126'),
+    rootInk: v('--root-ink', '#ffffff'),
+    badgeBg: v('--badge-bg', '#ffffff'),
+    badgeInk: v('--badge-ink', '#3b4150'),
   };
 }
 
@@ -108,7 +131,7 @@ async function toDataUrl(url: string): Promise<string> {
   return `data:font/woff2;base64,${btoa(bin)}`;
 }
 
-async function fontFaces(theme: Theme): Promise<string> {
+async function fontFaces(theme: Theme, hasSticky: boolean): Promise<string> {
   const faces: [string, string, number][] = [
     ['Inter', interRegular, 400],
     ['Inter', interBold, 700],
@@ -116,7 +139,8 @@ async function fontFaces(theme: Theme): Promise<string> {
     ['Vazirmatn', vazirArabicBold, 700],
   ];
   if (theme.font === 'serif') faces.push(['Merriweather', merriRegular, 400], ['Merriweather', merriBold, 700]);
-  if (theme.font === 'hand') faces.push(['Caveat', caveatRegular, 400], ['Caveat', caveatBold, 700]);
+  // Sticky notes are always handwritten.
+  if (theme.font === 'hand' || hasSticky) faces.push(['Caveat', caveatRegular, 400], ['Caveat', caveatBold, 700]);
   try {
     const rules = await Promise.all(
       faces.map(async ([family, url, weight]) => `@font-face{font-family:'${family}';font-weight:${weight};src:url(${await toDataUrl(url)}) format('woff2');}`),
@@ -155,7 +179,15 @@ export async function buildSvg(input: SvgInput): Promise<{ svg: string; width: n
   const radius = Math.min(theme.radius, 30);
   const parts: string[] = [];
 
-  const fonts = input.embedFonts ? await fontFaces(theme) : '';
+  const hasSticky = nodes.some((n) => n.kind === 'sticky');
+  const fonts = input.embedFonts ? await fontFaces(theme, hasSticky) : '';
+  // Measure with the real fonts, or the text wraps differently from the screen.
+  try {
+    const families = new Set(nodes.filter((n) => n.kind === 'claim' || n.kind === 'sticky').map((n) => String(textStyle(n, theme).fontFamily)));
+    await Promise.all([...families].flatMap((f) => [document.fonts.load(`400 16px ${f}`), document.fonts.load(`700 16px ${f}`)]));
+  } catch {
+    /* measuring falls back to whatever is loaded */
+  }
   parts.push(
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(input.title)}">`,
     `<title>${esc(input.title)}</title>`,
@@ -164,28 +196,29 @@ export async function buildSvg(input: SvgInput): Promise<{ svg: string; width: n
     `<marker id="ao" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="${c.objection}"/></marker>`,
     `<marker id="al" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="${c.ink3}"/></marker>`,
     `<filter id="sh" x="-10%" y="-10%" width="120%" height="140%"><feDropShadow dx="0" dy="1" stdDeviation="1.2" flood-opacity="0.12"/></filter>`,
+    `<filter id="paper" x="-10%" y="-10%" width="120%" height="130%"><feDropShadow dx="0" dy="5" stdDeviation="4" flood-color="#3c2d00" flood-opacity="0.3"/></filter>`,
+    `<linearGradient id="sticky" x1="0" y1="0" x2="0.08" y2="1"><stop offset="0" stop-color="#fff7b8"/><stop offset="0.55" stop-color="#fff19a"/><stop offset="1" stop-color="#fbe77e"/></linearGradient>`,
     `</defs>`,
   );
   if (input.background !== false) parts.push(`<rect width="100%" height="100%" fill="${c.bg}"/>`);
   parts.push(`<g transform="translate(${ox} ${oy})">`);
 
-  // Group boxes
+  // Reasons and objections: a bracket over their co-premises
   for (const box of layout.boxes.values()) {
     if (box.kind !== 'reason' && box.kind !== 'objection') continue;
     const n = byId.get(box.id);
     const r = box.kind === 'reason';
-    const stroke = n?.style?.border || (r ? c.reason : c.objection);
-    const fill = n?.style?.fill || (r ? c.reasonSoft : c.objectionSoft);
+    const stroke = n?.style?.border || (r ? c.reasonLine : c.objectionLine);
+    const left = box.x + 2, right = box.x + box.w - 2, top = box.y + 4, bottom = box.y + 13, rr = 9;
     parts.push(
-      `<rect x="${box.x}" y="${box.y}" width="${box.w}" height="${box.h}" rx="12" fill="${fill}" stroke="${stroke}" stroke-width="${bold ? 3 : 2}"/>`,
-      `<text x="${box.x + 10}" y="${box.y + 13}" font-family="Inter, sans-serif" font-size="10.5" font-weight="700" letter-spacing="0.6" fill="${r ? c.reasonText : c.objectionText}">${r ? 'REASON' : 'OBJECTION'}</text>`,
+      `<path d="M${left} ${bottom} A${rr} ${rr} 0 0 1 ${left + rr} ${top} H${right - rr} A${rr} ${rr} 0 0 1 ${right} ${bottom}" fill="none" stroke="${stroke}" stroke-width="${edgeW}"/>`,
     );
   }
 
-  // Support / objection arrows
+  // Lines from each claim down to its reasons and objections
   for (const e of layout.edges) {
-    const color = e.kind === 'reason' ? c.reason : c.objection;
-    parts.push(`<path d="${edgePath(e.x1, e.y1, e.x2, e.y2, theme.lineStyle)}" fill="none" stroke="${color}" stroke-width="${edgeW}" marker-end="url(#${e.kind === 'reason' ? 'ar' : 'ao'})"/>`);
+    const color = e.kind === 'reason' ? c.reasonLine : c.objectionLine;
+    parts.push(`<path d="${edgePath(e.x1, e.y1, e.x2, e.y2, theme.lineStyle)}" fill="none" stroke="${color}" stroke-width="${edgeW}"/>`);
   }
 
   // Claims and sticky notes
@@ -197,12 +230,23 @@ export async function buildSvg(input: SvgInput): Promise<{ svg: string; width: n
     const bs = boxStyle(n, theme);
     const sticky = n.kind === 'sticky';
     const isRoot = n.kind === 'claim' && n.parent === null;
-    const fill = (bs.background as string) || (sticky ? '#fff3a8' : n.implicit ? c.surface2 : c.surface);
-    const stroke = (bs.borderColor as string) || (sticky ? '#e8d36a' : n.implicit ? c.ink3 : isRoot ? c.ink2 : c.line);
-    const sw = sticky ? 1 : isRoot ? (bold ? 3 : Math.max(2, theme.borderWidth)) : theme.borderWidth;
-    const color = (bs.color as string) || (sticky ? '#3b3200' : c.ink);
+    const group = n.parent ? byId.get(n.parent)?.kind : undefined;
+    const inReason = group === 'reason', inObjection = group === 'objection';
+    const fill = (bs.background as string)
+      || (sticky ? 'url(#sticky)' : isRoot ? c.rootFill : inReason ? c.reasonFill : inObjection ? c.objectionFill : n.implicit ? c.surface2 : c.surface);
+    const stroke = (bs.borderColor as string)
+      || (isRoot ? c.rootLine : inReason ? c.reasonLine : inObjection ? c.objectionLine : n.implicit ? c.ink3 : c.line);
+    const sw = isRoot && bold ? 3 : theme.borderWidth;
+    const color = (bs.color as string) || (sticky ? '#3b3200' : isRoot ? c.rootInk : inReason ? c.reasonInk : inObjection ? c.objectionInk : c.ink);
+    const rx = isRoot ? box.h / 2 : Math.min(radius, 12, box.h / 2);
+    // Sticky notes lean a little, like paper stuck on a wall.
+    const tilt = sticky ? ` transform="rotate(-1 ${box.x + box.w / 2} ${box.y + box.h / 2})"` : '';
+    if (sticky) parts.push(`<g${tilt}>`);
     parts.push(
-      `<rect x="${box.x}" y="${box.y}" width="${box.w}" height="${box.h}" rx="${sticky ? 3 : Math.min(radius, box.h / 2)}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"${n.implicit ? ' stroke-dasharray="6 4"' : ''}${theme.shadow ? ' filter="url(#sh)"' : ''}/>`,
+      sticky
+        ? `<rect x="${box.x}" y="${box.y}" width="${box.w}" height="${box.h}" rx="2" fill="${fill}" filter="url(#paper)"/>` +
+          `<rect x="${box.x}" y="${box.y}" width="${box.w}" height="${Math.round(box.h * 0.14)}" fill="rgba(150,120,0,0.06)"/>`
+        : `<rect x="${box.x}" y="${box.y}" width="${box.w}" height="${box.h}" rx="${rx}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"${n.implicit ? ' stroke-dasharray="6 4"' : ''}${theme.shadow && isRoot ? ' filter="url(#sh)"' : ''}/>`,
     );
     const px = Number(ts.fontSize);
     const lh = Math.round(px * 1.43);
@@ -228,12 +272,15 @@ export async function buildSvg(input: SvgInput): Promise<{ svg: string; width: n
         `<text x="${x}" y="${y0 + i * lh}" text-anchor="${anchor}"${rtl ? ' direction="rtl" unicode-bidi="plaintext"' : ''} font-family="${esc(family)}" font-size="${px}" font-weight="${ts.fontWeight}"${ts.fontStyle === 'italic' ? ' font-style="italic"' : ''}${ts.textDecoration !== 'none' ? ` text-decoration="${ts.textDecoration}"` : ''} fill="${color}">${esc(line)}</text>`,
       );
     });
+    if (sticky) parts.push('</g>');
+    // Level numbers sit on the top-right corner, like a tab.
     const label = labels.get(n.id);
     if (label) {
-      const lw = Math.max(20, label.length * 6.5 + 10);
+      const lw = Math.max(24, label.length * 6 + 12);
+      const lx = box.x + box.w - (isRoot ? 22 : 10) - lw;
       parts.push(
-        `<rect x="${box.x - 9}" y="${box.y - 9}" width="${lw}" height="18" rx="9" fill="${c.ink2}"/>`,
-        `<text x="${box.x - 9 + lw / 2}" y="${box.y + 4}" text-anchor="middle" font-family="Inter, sans-serif" font-size="10.5" font-weight="700" fill="${c.surface}">${esc(label)}</text>`,
+        `<rect x="${lx}" y="${box.y - 10}" width="${lw}" height="18" rx="9" fill="${c.badgeBg}" stroke="${c.line}"/>`,
+        `<text x="${lx + lw / 2}" y="${box.y + 3}" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" font-weight="600" fill="${c.badgeInk}">${esc(label)}</text>`,
       );
     }
   }
