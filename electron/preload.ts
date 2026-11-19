@@ -21,6 +21,11 @@ contextBridge.exposeInMainWorld('argmapDesktop', {
   hostStop: () => ipcRenderer.invoke('collab:stop'),
   hostStatus: () => ipcRenderer.invoke('collab:status'),
   discoverHosts: () => ipcRenderer.invoke('collab:discover'),
+  drive: (method: string, ...args: unknown[]) => {
+    const allowed = ['status', 'signIn', 'cancelSignIn', 'signOut', 'list', 'open', 'save'];
+    if (!allowed.includes(method)) return Promise.reject(new Error('Unknown Drive call'));
+    return ipcRenderer.invoke(`drive:${method}`, ...args);
+  },
   confirmClose: () => ipcRenderer.send('app:close-confirmed'),
   openExternal: (url: string) => ipcRenderer.send('app:open-external', url),
   exportFile: (name: string, data: Uint8Array | string, filter: { name: string; extensions: string[] }) =>

@@ -25,6 +25,7 @@ export interface DesktopBridge {
   hostStop(): Promise<void>;
   hostStatus(): Promise<(HostInfo & { peers: number }) | null>;
   discoverHosts(): Promise<FoundHost[]>;
+  drive(method: string, ...args: unknown[]): Promise<{ ok: boolean; value?: unknown; error?: string }>;
   confirmClose(): void;
   openExternal(url: string): void;
   exportFile(suggestedName: string, data: Uint8Array | string, filter: FileFilter): Promise<SavedFile | null>;
@@ -36,6 +37,47 @@ export interface HostInfo {
   editCode: string;
   viewCode: string;
   addresses: string[];
+}
+
+export interface DriveFile {
+  id: string;
+  name: string;
+  modifiedTime: string;
+}
+
+export interface DriveStatus {
+  configured: boolean;
+  signedIn: boolean;
+  email?: string;
+  name?: string;
+}
+
+/** Google Drive, through the desktop app (web builds don't have it). */
+export interface DriveApi {
+  status(): Promise<DriveStatus>;
+  signIn(): Promise<DriveStatus>;
+  cancelSignIn(): Promise<void>;
+  signOut(): Promise<void>;
+  list(): Promise<DriveFile[]>;
+  open(id: string): Promise<{ file: DriveFile; content: string }>;
+  save(opts: { id?: string; name: string; content: string; expectedModified?: string; force?: boolean }): Promise<{ file: DriveFile } | { conflict: DriveFile }>;
+}
+
+function driveApi(bridge: DesktopBridge): DriveApi {
+  const call = async <T,>(method: string, ...args: unknown[]): Promise<T> => {
+    const r = await bridge.drive(method, ...args);
+    if (!r.ok) throw new Error(r.error ?? 'Google Drive request failed.');
+    return r.value as T;
+  };
+  return {
+    status: () => call('status'),
+    signIn: () => call('signIn'),
+    cancelSignIn: () => call('cancelSignIn'),
+    signOut: () => call('signOut'),
+    list: () => call('list'),
+    open: (id) => call('open', id),
+    save: (opts) => call('save', opts),
+  };
 }
 
 export interface FoundHost {
@@ -76,6 +118,7 @@ export interface Platform {
   hostStart(title: string): Promise<HostInfo>;
   hostStop(): Promise<void>;
   discoverHosts(): Promise<FoundHost[]>;
+  drive?: DriveApi;
 }
 
 function desktopPlatform(bridge: DesktopBridge): Platform {
@@ -96,6 +139,7 @@ function desktopPlatform(bridge: DesktopBridge): Platform {
     hostStart: (title) => bridge.hostStart(title),
     hostStop: () => bridge.hostStop(),
     discoverHosts: () => bridge.discoverHosts(),
+    drive: driveApi(bridge),
   };
 }
 

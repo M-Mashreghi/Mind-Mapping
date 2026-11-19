@@ -1294,7 +1294,7 @@ legend {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  width: min(460px, 100%);
+  width: 100%;
 }
 
 .share section {
@@ -1696,4 +1696,112 @@ legend {
   .share-codes {
     grid-template-columns: 1fr;
   }
+}
+
+/* ------------------------------------------------------------ Google Drive */
+
+.drive {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+
+.dialog:has(.drive),
+.dialog:has(.share) {
+  width: min(560px, 100%);
+}
+
+.drive section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.drive p {
+  margin: 0;
+}
+
+.drive h3 {
+  margin: 0;
+  font-size: 14px;
+  flex: 1;
+}
+
+.drive-signin .primary {
+  align-self: flex-start;
+}
+
+.drive-actions,
+.drive-account,
+.drive-save,
+.drive-list-head {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 8px;
+}
+
+.drive-account span {
+  flex: 1;
+}
+
+.drive-save button:not(.primary),
+.drive-actions button {
+  font: inherit;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink);
+  border-radius: 8px;
+  padding: 7px 12px;
+  cursor: pointer;
+}
+
+.drive-list-head input {
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 4px 8px;
+  width: 160px;
+}
+
+.drive-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 320px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.drive-list button {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  text-align: left;
+  font: inherit;
+  color: var(--ink);
+  background: var(--surface-2);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+.drive-list button:hover:not(:disabled),
+.drive-list button.current {
+  border-color: var(--brand);
+}
+
+.drive-list span {
+  font-size: 12px;
+  color: var(--ink-2);
+  white-space: nowrap;
 }

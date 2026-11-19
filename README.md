@@ -5,8 +5,8 @@ support it and the objections against it, with co-premises, hidden assumptions a
 nested rebuttals, then share the map with people on your network.
 
 > Status: early development. The editor, styling, notes, export, Windows/Linux
-> installers and live LAN collaboration are in place. See the [roadmap](docs/ROADMAP.md)
-> for what comes next: Google Drive, presenting and more.
+> installers, live LAN collaboration and Google Drive are in place. See the
+> [roadmap](docs/ROADMAP.md) for what comes next: presenting, evaluating arguments and more.
 
 ## Download
 
@@ -38,6 +38,40 @@ Windows may show a SmartScreen warning the first time because the app is not cod
 - **Work together on your local network**: one person shares the map from the desktop app,
   others join from the app or from any browser; live edits, cursors and selections,
   view-only guests, comments and emoji reactions on boxes
+
+- **Google Drive** in the desktop app: sign in once, open and save maps in your Drive,
+  changes save back automatically, and a map changed elsewhere is never silently overwritten
+
+## Google Drive
+
+In the desktop app choose **File → Google Drive…** and **Sign in with Google**. Your browser
+opens Google's sign-in page; when it says you are signed in, go back to the app. Then:
+
+- **Save this map to Drive** creates a `.amap` file in your Drive. From then on every change
+  saves back to Drive automatically ("Saved in Drive" next to the title).
+- The list shows your maps in Drive; click one to open it.
+- If the same map was changed in Drive by someone else (or on another computer) since you opened
+  it, the app asks whether to replace it or to save your version as a separate copy.
+
+The app asks only for the `drive.file` permission: it can see the files it created or that you
+opened with it, and nothing else in your Drive. The sign-in is stored on your computer,
+encrypted with the system keychain where available. **Sign out** removes it.
+
+### Setting up the Google sign-in key (for whoever builds the app)
+
+Google needs an OAuth client for the app. Create one in
+[Google Cloud Console](https://console.cloud.google.com): enable the **Google Drive API**, set up
+the **Google Auth Platform** (External audience, add the `…/auth/drive.file` scope, add test
+users while the app is in testing), then **Clients → Create client → Desktop app**. Put the
+values in `electron/google-client.json`:
+
+```json
+{ "clientId": "1234-abc.apps.googleusercontent.com", "clientSecret": "GOCSPX-…" }
+```
+
+For desktop apps Google does not treat the client secret as confidential, so it can live in the
+repository. You can also set `ARGMAP_GOOGLE_CLIENT_ID` and `ARGMAP_GOOGLE_CLIENT_SECRET` when
+starting the app. Without a key, Drive is simply turned off.
 
 ## Working together on a local network
 

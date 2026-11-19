@@ -37,6 +37,14 @@ const list: Command[] = [
   { id: 'file.open', label: 'Open…', shortcut: 'Ctrl+O', run: (ed) => void ed.open() },
   { id: 'file.save', label: 'Save', shortcut: 'Ctrl+S', run: (ed) => void ed.save() },
   { id: 'file.saveAs', label: 'Save as…', shortcut: 'Ctrl+Shift+S', run: (ed) => void ed.save(true) },
+  {
+    id: 'file.drive', label: 'Google Drive…', enabled: () => !!platform.drive,
+    run: () => window.dispatchEvent(new CustomEvent('argmap:drive')),
+  },
+  {
+    id: 'file.driveSave', label: 'Save to Google Drive', enabled: () => !!platform.drive,
+    run: (ed) => void ed.saveToDrive(),
+  },
   { id: 'file.importMup', label: 'MindMup file (.mup)…', run: (ed) => void ed.importMindMupFile() },
   { id: 'file.exportPng', label: 'Image (PNG)', run: (ed) => void ed.exportAs('png') },
   { id: 'file.exportSvg', label: 'Vector image (SVG)', run: (ed) => void ed.exportAs('svg') },
@@ -184,7 +192,7 @@ list.push(
 );
 
 /** Commands a view-only guest may still use: they don't change the shared map. */
-const READ_ONLY_SAFE = /^(file\.(new|open|saveAs|export\w*|share)|edit\.(copy|select\w*|clearSelection|find|note)|view\.(?!fold|unfold|resetStyling|theme|labels|lines|comfortable)|help\.)/;
+const READ_ONLY_SAFE = /^(file\.(new|open|saveAs|export\w*|share|drive)|edit\.(copy|select\w*|clearSelection|find|note)|view\.(?!fold|unfold|resetStyling|theme|labels|lines|comfortable)|help\.)/;
 for (const c of list) {
   if (READ_ONLY_SAFE.test(c.id)) continue;
   const enabled = c.enabled;
@@ -205,7 +213,7 @@ export const menus: { label: string; items: MenuItem[] }[] = [
   {
     label: 'File',
     items: [
-      'file.new', 'file.open', { label: 'Open recent', items: [] }, '-', 'file.save', 'file.saveAs', '-',
+      'file.new', 'file.open', { label: 'Open recent', items: [] }, '-', 'file.save', 'file.saveAs', '-', 'file.drive', 'file.driveSave', '-',
       { label: 'Import', items: ['file.importMup'] },
       { label: 'Export', items: ['file.exportPng', 'file.exportSvg', 'file.exportPdf', '-', 'file.exportMd', 'file.exportTxt', 'file.exportNotes'] },
       '-', 'file.share', '-', 'file.history', 'file.rename',

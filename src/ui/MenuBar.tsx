@@ -65,7 +65,9 @@ export function MenuBar({ editor }: { editor: Editor }) {
         <span className={`save-state${editor.file.dirty ? ' dirty' : ''}`}>
           {editor.collab?.role === 'guest'
             ? editor.collab.readOnly ? 'View only' : 'Shared'
-            : editor.file.dirty ? (editor.file.path ? 'Saving…' : 'Not saved') : editor.file.path ? 'Saved' : ''}
+            : editor.file.dirty
+              ? (editor.file.path || editor.file.drive ? 'Saving…' : 'Not saved')
+              : editor.file.drive ? 'Saved in Drive' : editor.file.path ? 'Saved' : ''}
         </span>
       </div>
       <div className="share-area">
