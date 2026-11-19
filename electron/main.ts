@@ -3,7 +3,7 @@ import { existsSync, promises as fs } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { Bonjour, Service } from 'bonjour-service';
-import { CollabServer } from './collab-server';
+import { CollabServer, TrustStore, TrustedPerson } from './collab-server';
 import { GoogleDrive } from './google-drive';
 import googleClient from './google-client.json';
 
@@ -134,6 +134,7 @@ function createWindow() {
       pendingOpen = null;
     }
   });
+  win.on('focus', () => win?.flashFrame(false));
   win.on('closed', () => {
     win = null;
   });
@@ -211,6 +212,21 @@ ipcMain.on('app:open-external', (_e, url: string) => {
 // ------------------------------------------------------------ LAN sharing
 
 let server: CollabServer | null = null;
+
+/** People the host chose to "always allow", kept between runs. */
+const trustFile = () => path.join(app.getPath('userData'), 'lan-allowed.json');
+const trustStore: TrustStore = {
+  async load() {
+    try {
+      return JSON.parse(await fs.readFile(trustFile(), 'utf8')) as TrustedPerson[];
+    } catch {
+      return [];
+    }
+  },
+  async save(list) {
+    await fs.writeFile(trustFile(), JSON.stringify(list, null, 2), 'utf8');
+  },
+};
 let bonjour: Bonjour | null = null;
 
 function getBonjour(): Bonjour {
@@ -221,7 +237,12 @@ function getBonjour(): Bonjour {
 ipcMain.handle('collab:host', async (_e, title: string) => {
   if (server?.info) return server.info;
   server = new CollabServer();
-  const info = await server.start({ staticDir: path.join(__dirname, '..', 'dist') });
+  server.on('change', (state) => win?.webContents.send('collab:state', state));
+  server.on('request', () => {
+    // Someone is waiting at the door: get the host's attention.
+    if (win && !win.isFocused()) win.flashFrame(true);
+  });
+  const info = await server.start({ staticDir: path.join(__dirname, '..', 'dist'), trust: trustStore });
   try {
     getBonjour().publish({
       name: `${String(title).slice(0, 40) || 'Argument map'} (${os.hostname()})`.slice(0, 63),
@@ -244,6 +265,13 @@ ipcMain.handle('collab:stop', async () => {
   await server?.stop();
   server = null;
 });
+
+const role = (r: unknown) => (r === 'view' ? 'view' : 'edit');
+ipcMain.handle('collab:approve', (_e, id: string, r: string, always: boolean) => server?.approve(String(id), role(r), !!always));
+ipcMain.handle('collab:deny', (_e, id: string) => server?.deny(String(id)));
+ipcMain.handle('collab:setRole', (_e, id: string, r: string) => server?.setRole(String(id), role(r)));
+ipcMain.handle('collab:remove', (_e, id: string) => server?.remove(String(id)));
+ipcMain.handle('collab:forget', (_e, deviceId: string) => server?.forget(String(deviceId)));
 
 ipcMain.handle('collab:status', () => (server?.info ? { ...server.info, peers: server.peerCount } : null));
 
