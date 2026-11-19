@@ -71,6 +71,8 @@ export class Editor {
   /** Saved versions of this map, newest first. */
   history: Snapshot[] = [];
   collab: CollabState | null = null;
+  /** Select tool, or the hand tool that only pans. */
+  tool: 'select' | 'pan' = 'select';
   user: PeerUser | null = loadUser();
   showComments = true;
   /** Set when the page was opened from a share link (browser guests). */
@@ -1130,6 +1132,11 @@ export class Editor {
   }
 
   // ------------------------------------------------------------ collaboration
+
+  setTool(tool: 'select' | 'pan'): void {
+    this.tool = tool;
+    this.emit();
+  }
 
   get readOnly(): boolean {
     return !!this.collab?.readOnly;

@@ -39,7 +39,7 @@ describe('styles, notes, links', () => {
     copy.load(parseMapFile(serialize(doc.toFile())));
     expect(copy.theme.numbering).toBe('hierarchical');
     expect(copy.theme.reason.fill).toBe('#e0ffe0');
-    expect(copy.theme.lineStyle).toBe('curved');
+    expect(copy.theme.lineStyle).toBe('elbow');
   });
 });
 
