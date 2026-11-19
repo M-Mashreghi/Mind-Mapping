@@ -9,6 +9,9 @@ const common = {
   // ws can use these optional native add-ons when present; it works without them.
   external: ['electron', 'bufferutil', 'utf-8-validate'],
   sourcemap: true,
+  // The Google OAuth client secret comes from the environment (a GitHub Actions secret in CI),
+  // so it never has to be committed.
+  define: { __GOOGLE_CLIENT_SECRET__: JSON.stringify(process.env.GOOGLE_CLIENT_SECRET ?? '') },
   logLevel: 'info',
 };
 

@@ -62,16 +62,15 @@ encrypted with the system keychain where available. **Sign out** removes it.
 Google needs an OAuth client for the app. Create one in
 [Google Cloud Console](https://console.cloud.google.com): enable the **Google Drive API**, set up
 the **Google Auth Platform** (External audience, add the `…/auth/drive.file` scope, add test
-users while the app is in testing), then **Clients → Create client → Desktop app**. Put the
-values in `electron/google-client.json`:
+users while the app is in testing), then **Clients → Create client → Desktop app**.
 
-```json
-{ "clientId": "1234-abc.apps.googleusercontent.com", "clientSecret": "GOCSPX-…" }
-```
+- The **client ID** goes in `electron/google-client.json` (it is public anyway).
+- The **client secret** is not committed. Add it to the repository as an Actions secret named
+  `GOOGLE_CLIENT_SECRET` (**Settings → Secrets and variables → Actions → New repository
+  secret**); the release workflow builds it into the installers. For a local build, run
+  `GOOGLE_CLIENT_SECRET=… npm run build` (or set `ARGMAP_GOOGLE_CLIENT_SECRET` when starting the app).
 
-For desktop apps Google does not treat the client secret as confidential, so it can live in the
-repository. You can also set `ARGMAP_GOOGLE_CLIENT_ID` and `ARGMAP_GOOGLE_CLIENT_SECRET` when
-starting the app. Without a key, Drive is simply turned off.
+Without both values, Drive is simply turned off.
 
 ## Working together on a local network
 

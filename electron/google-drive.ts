@@ -79,7 +79,8 @@ export class GoogleDrive {
   }
 
   get configured(): boolean {
-    return !!this.cfg.clientId;
+    // Google refuses the token exchange without the secret, so both are needed.
+    return !!this.cfg.clientId && !!this.cfg.clientSecret;
   }
 
   private async load(): Promise<Saved | null> {

@@ -7,6 +7,9 @@ import { CollabServer } from './collab-server';
 import { GoogleDrive } from './google-drive';
 import googleClient from './google-client.json';
 
+/** Filled in at build time from the GOOGLE_CLIENT_SECRET environment variable (see scripts/build-electron.mjs). */
+declare const __GOOGLE_CLIENT_SECRET__: string;
+
 const FILE_FILTERS = [{ name: 'Argument maps', extensions: ['amap'] }];
 const MAX_RECENT = 10;
 
@@ -276,7 +279,7 @@ const TEST_GOOGLE = process.env.ARGMAP_TEST_GOOGLE_ENDPOINT;
 const drive = new GoogleDrive(
   {
     clientId: process.env.ARGMAP_GOOGLE_CLIENT_ID ?? googleClient.clientId,
-    clientSecret: process.env.ARGMAP_GOOGLE_CLIENT_SECRET ?? googleClient.clientSecret,
+    clientSecret: process.env.ARGMAP_GOOGLE_CLIENT_SECRET ?? (googleClient.clientSecret || __GOOGLE_CLIENT_SECRET__),
     // End-to-end tests point the app at a fake Google.
     ...(TEST_GOOGLE
       ? { authUrl: `${TEST_GOOGLE}/auth`, tokenUrl: `${TEST_GOOGLE}/token`, apiBase: `${TEST_GOOGLE}/drive`, uploadBase: `${TEST_GOOGLE}/upload` }
