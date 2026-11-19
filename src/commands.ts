@@ -188,11 +188,13 @@ list.push(
     id: 'file.share', label: 'Share on local network…',
     run: () => window.dispatchEvent(new CustomEvent('argmap:share')),
   },
+  { id: 'tool.select', label: 'Select tool', shortcut: 'V', run: (ed) => ed.setTool('select') },
+  { id: 'tool.pan', label: 'Hand tool (move around)', shortcut: 'H', run: (ed) => ed.setTool('pan') },
   { id: 'view.comments', label: 'Show comments and reactions', shortcut: 'Shift+C', run: (ed) => ed.toggleComments(), checked: (ed) => ed.showComments },
 );
 
 /** Commands a view-only guest may still use: they don't change the shared map. */
-const READ_ONLY_SAFE = /^(file\.(new|open|saveAs|export\w*|share|drive)|edit\.(copy|select\w*|clearSelection|find|note)|view\.(?!fold|unfold|resetStyling|theme|labels|lines|comfortable)|help\.)/;
+const READ_ONLY_SAFE = /^(file\.(new|open|saveAs|export\w*|share|drive)|edit\.(copy|select\w*|clearSelection|find|note)|tool\.|view\.(?!fold|unfold|resetStyling|theme|labels|lines|comfortable)|help\.)/;
 for (const c of list) {
   if (READ_ONLY_SAFE.test(c.id)) continue;
   const enabled = c.enabled;
@@ -314,6 +316,8 @@ export function commandForKey(e: KeyboardEvent): string | null {
   if (code === 'KeyD' && !shift) return 'edit.detach';
   if (code === 'KeyN') return shift ? 'view.notes' : 'edit.note';
   if (code === 'KeyC' && shift) return 'view.comments';
+  if (code === 'KeyV' && !shift) return 'tool.select';
+  if (code === 'KeyH' && !shift) return 'tool.pan';
   if (code === 'KeyT') return shift ? 'text.smaller' : 'text.larger';
   return null;
 }

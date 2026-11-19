@@ -6,7 +6,8 @@ import { Canvas } from './ui/Canvas';
 import { MenuBar } from './ui/MenuBar';
 import { ContextMenu } from './ui/Menu';
 import { AboutDialog, HistoryDialog, ShortcutsDialog } from './ui/Dialogs';
-import { NodeToolbar } from './ui/NodeToolbar';
+import { AddHandles, NodeToolbar } from './ui/NodeToolbar';
+import { Dock } from './ui/Dock';
 import { NotesPanel } from './ui/NotesPanel';
 import { FindBar } from './ui/FindBar';
 import { ThemePanel } from './ui/ThemePanel';
@@ -147,32 +148,33 @@ export function App() {
       <div className="workspace">
       <main className="stage">
         <Canvas editor={editor} onContextMenu={(kind, x, y) => setMenu({ kind, x, y })} />
+        <AddHandles editor={editor} />
         <NodeToolbar editor={editor} onMore={(x, y) => setMenu({ kind: 'node', x, y })} />
         {editor.find ? <FindBar editor={editor} /> : null}
 
-        {editor.readOnly ? (
-          <div className="toolbar toolbar-insert view-only-badge" role="status">View only</div>
-        ) : <div className="toolbar toolbar-insert" role="toolbar" aria-label="Insert">
-          <button onClick={() => cmd('insert.root').run(editor)} title="New root claim (Ctrl+D)">
-            <span className="swatch swatch-claim" /> Claim
-          </button>
-          <button onClick={() => editor.addReason()} disabled={!editor.primary} title="Add a reason (Alt+S)">
-            <span className="swatch swatch-reason" /> Reason
-          </button>
-          <button onClick={() => editor.addObjection()} disabled={!editor.primary} title="Add an objection (Alt+O)">
-            <span className="swatch swatch-objection" /> Objection
-          </button>
-        </div>}
+        <Dock editor={editor} />
 
-        <div className="toolbar toolbar-view" role="toolbar" aria-label="View">
-          <button onClick={() => editor.undo()} disabled={!editor.doc.undo.canUndo()} title="Undo (Ctrl+Z)" aria-label="Undo">↶</button>
-          <button onClick={() => editor.redo()} disabled={!editor.doc.undo.canRedo()} title="Redo (Ctrl+Shift+Z)" aria-label="Redo">↷</button>
-          <span className="toolbar-sep" />
-          <button onClick={() => editor.zoomAt(1 / 1.2)} title="Zoom out (Ctrl+-)" aria-label="Zoom out">−</button>
-          <button className="zoom-pct" onClick={() => editor.zoomToFit()} title="Zoom to fit (Ctrl+1)">{zoomPct}%</button>
-          <button onClick={() => editor.zoomAt(1.2)} title="Zoom in (Ctrl++)" aria-label="Zoom in">+</button>
-          <span className="toolbar-sep" />
-          <button onClick={() => setDialog('shortcuts')} title="Keyboard shortcuts (Ctrl+/)" aria-label="Help">?</button>
+        <div className="corner-tools">
+          <div className="pill" role="toolbar" aria-label="Zoom">
+            <button onClick={() => editor.zoomAt(1 / 1.2)} title="Zoom out (Ctrl+-)" aria-label="Zoom out">
+              <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
+            </button>
+            <button className="zoom-pct" onClick={() => editor.zoomToFit()} title="Zoom to fit (Ctrl+1)">{zoomPct}%</button>
+            <button onClick={() => editor.zoomAt(1.2)} title="Zoom in (Ctrl++)" aria-label="Zoom in">
+              <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
+            </button>
+          </div>
+          <div className="pill" role="toolbar" aria-label="History">
+            <button onClick={() => editor.undo()} disabled={!editor.doc.undo.canUndo() || editor.readOnly} title="Undo (Ctrl+Z)" aria-label="Undo">
+              <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 4L2.5 7l3 3M3 7h6.5a4 4 0 010 8H7" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            </button>
+            <button onClick={() => editor.redo()} disabled={!editor.doc.undo.canRedo() || editor.readOnly} title="Redo (Ctrl+Shift+Z)" aria-label="Redo">
+              <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M10.5 4l3 3-3 3M13 7H6.5a4 4 0 000 8H9" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            </button>
+          </div>
+          <div className="pill" role="toolbar" aria-label="Help">
+            <button onClick={() => setDialog('shortcuts')} title="Keyboard shortcuts (Ctrl+/)" aria-label="Help">?</button>
+          </div>
         </div>
 
         {editor.message ? (

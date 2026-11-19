@@ -145,3 +145,52 @@ function AlignIcon({ align }: { align: 'left' | 'center' | 'right' }) {
     </svg>
   );
 }
+
+/** Quick-add buttons around the selected box: co-premise to the right, reason and objection below. */
+export function AddHandles({ editor }: { editor: Editor }) {
+  const id = editor.primary;
+  const box = id ? editor.layout.boxes.get(id) : undefined;
+  const node = editor.doc.get(id);
+  if (!box || !node || node.kind !== 'claim' || editor.editing || editor.readOnly || editor.selection.length !== 1) return null;
+  const { zoom, x, y } = editor.view;
+  const left = box.x * zoom + x;
+  const top = box.y * zoom + y;
+  const w = box.w * zoom;
+  const h = box.h * zoom;
+  const stop = (e: React.PointerEvent) => e.stopPropagation();
+  return (
+    <>
+      {node.parent ? (
+        <button className="add-handle add-sibling" style={{ left: left + w + 10, top: top + h / 2 }}
+          title="Add a co-premise beside it (Tab)" aria-label="Add co-premise" onPointerDown={stop}
+          onClick={() => editor.addSibling()}>
+          <PlusIcon />
+        </button>
+      ) : null}
+      <div className="add-below" style={{ left: left + w / 2, top: top + h + 12 }} onPointerDown={stop}>
+        <button className="add-handle add-reason" title="Add a reason (Alt+S)" aria-label="Add reason" onClick={() => editor.addReason()}>
+          <PlusIcon />
+        </button>
+        <button className="add-handle add-objection" title="Add an objection (Alt+O)" aria-label="Add objection" onClick={() => editor.addObjection()}>
+          <MinusIcon />
+        </button>
+      </div>
+    </>
+  );
+}
+
+function PlusIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+      <path d="M7 2v10M2 7h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function MinusIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+      <path d="M2.5 7h9" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+    </svg>
+  );
+}

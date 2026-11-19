@@ -92,7 +92,7 @@ export function Canvas({ editor, onContextMenu }: Props) {
       editor.connectTo(id);
       return;
     }
-    if (!id) {
+    if (!id || editor.tool === 'pan') {
       editor.commitEditing();
       panRef.current = {
         pointerId: e.pointerId, startX: e.clientX, startY: e.clientY,
@@ -211,7 +211,7 @@ export function Canvas({ editor, onContextMenu }: Props) {
   return (
     <div
       ref={ref}
-      className={`canvas${drag?.active ? ' dragging' : ''} map-${theme.mapStyle}`}
+      className={`canvas${drag?.active ? ' dragging' : ''}${editor.tool === 'pan' ? ' panning' : ''} map-${theme.mapStyle}`}
       style={style}
       tabIndex={0}
       role="application"
@@ -257,6 +257,7 @@ export function Canvas({ editor, onContextMenu }: Props) {
             dropTarget={drag?.target === b.id}
             editor={editor}
             editing={editing?.id === b.id ? editing : null}
+            groupKind={nodes.get(nodes.get(b.id)!.parent ?? '')?.kind}
             comments={commentCounts.get(b.id) ?? 0}
             reactions={reactions.get(b.id)}
             me={me}
@@ -343,7 +344,6 @@ function EdgePath({ edge, from, to, lineStyle }: { edge: Edge; from: Off; to: Of
     <path
       className={`edge edge-${edge.kind}`}
       d={edgePath(x1, y1, x2, y2, lineStyle)}
-      markerEnd={`url(#arrow-${edge.kind})`}
     />
   );
 }
@@ -377,15 +377,17 @@ interface ClaimProps {
   dropTarget: boolean;
   editor: Editor;
   editing: { id: string; initial?: string } | null;
+  groupKind?: string;
   comments: number;
   reactions?: Map<string, string[]>;
   me: string;
 }
 
-function ClaimView({ box, node, theme, label, match, offset, selected, dropTarget, editor, editing, comments, reactions, me }: ClaimProps) {
+function ClaimView({ box, node, theme, label, match, offset, selected, dropTarget, editor, editing, groupKind, comments, reactions, me }: ClaimProps) {
   const cls = [
     node.kind === 'sticky' ? 'sticky' : 'claim',
     node.kind === 'claim' && node.parent === null ? 'root' : '',
+    groupKind === 'reason' ? 'in-reason' : groupKind === 'objection' ? 'in-objection' : '',
     node.implicit ? 'implicit' : '',
     selected ? 'selected' : '',
     dropTarget ? 'drop-target' : '',

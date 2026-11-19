@@ -24,30 +24,34 @@ export const FONTS: { id: string; label: string; css: string }[] = [
 export const fontCss = (id: string) => (FONTS.find((f) => f.id === id) ?? FONTS[0]).css;
 
 export const FONT_SIZES: Record<FontSize, { px: number; label: string; maxWidth: number }> = {
-  xs: { px: 12, label: 'XS', maxWidth: 220 },
-  s: { px: 13, label: 'S', maxWidth: 230 },
-  m: { px: 14, label: 'M', maxWidth: 240 },
-  l: { px: 17, label: 'L', maxWidth: 280 },
-  xl: { px: 21, label: 'XL', maxWidth: 330 },
+  xs: { px: 12, label: 'XSmall', maxWidth: 250 },
+  s: { px: 13, label: 'Small', maxWidth: 260 },
+  m: { px: 14, label: 'Medium', maxWidth: 270 },
+  l: { px: 17, label: 'Large', maxWidth: 300 },
+  xl: { px: 21, label: 'XLarge', maxWidth: 340 },
 };
 
 /** Text layout properties shared by the measuring probe and the rendered node. */
 export function textStyle(node: MapNode, theme: Theme): CSSProperties {
   const s = node.style ?? {};
   const isRoot = node.kind === 'claim' && node.parent === null;
-  const size = FONT_SIZES[s.size ?? (theme.mapStyle === 'bold' && isRoot ? 'l' : theme.fontSize)];
-  const hand = theme.font === 'hand';
+  // The main claim reads one size larger than the rest unless it has its own size.
+  const order: FontSize[] = ['xs', 's', 'm', 'l', 'xl'];
+  const rootSize = order[Math.min(order.length - 1, order.indexOf(theme.fontSize) + (theme.mapStyle === 'bold' ? 2 : 1))];
+  const size = FONT_SIZES[s.size ?? (isRoot ? rootSize : theme.fontSize)];
+  const sticky = node.kind === 'sticky';
+  const hand = theme.font === 'hand' || sticky;
   const px = hand ? size.px + 4 : size.px;
   return {
-    fontFamily: fontCss(theme.font),
+    fontFamily: fontCss(sticky ? 'hand' : theme.font),
     fontSize: px,
     lineHeight: `${Math.round(px * 1.43)}px`,
-    fontWeight: s.bold || (theme.mapStyle === 'bold' && isRoot) ? 700 : 400,
+    fontWeight: s.bold || (theme.mapStyle === 'bold' && isRoot) ? 700 : isRoot ? 600 : 400,
     fontStyle: s.italic ? 'italic' : 'normal',
     textDecoration: [s.underline ? 'underline' : '', s.strike ? 'line-through' : ''].filter(Boolean).join(' ') || 'none',
     textAlign: s.align ?? 'center',
     maxWidth: node.kind === 'sticky' ? 220 : size.maxWidth,
-    padding: `${Math.round(px * 0.65)}px ${Math.round(px * 0.85)}px`,
+    padding: isRoot ? `${Math.round(px * 0.9)}px ${Math.round(px * 1.6)}px` : `${Math.round(px * 0.65)}px ${Math.round(px * 0.85)}px`,
   };
 }
 
@@ -88,12 +92,15 @@ export function themeVars(theme: Theme): CSSProperties {
     '--edge-width': `${theme.lineWidth}`,
   };
   if (theme.canvas) v['--bg'] = theme.canvas;
-  if (theme.reason.border) v['--reason'] = theme.reason.border;
-  if (theme.reason.fill) v['--reason-soft'] = theme.reason.fill;
-  if (theme.reason.text) v['--reason-text'] = theme.reason.text;
-  if (theme.objection.border) v['--objection'] = theme.objection.border;
-  if (theme.objection.fill) v['--objection-soft'] = theme.objection.fill;
-  if (theme.objection.text) v['--objection-text'] = theme.objection.text;
+  for (const kind of ['reason', 'objection'] as const) {
+    const c = theme[kind];
+    if (c.border) v[`--${kind}`] = v[`--${kind}-line`] = c.border;
+    if (c.fill) v[`--${kind}-soft`] = v[`--${kind}-fill`] = c.fill;
+    if (c.text) v[`--${kind}-text`] = v[`--${kind}-ink`] = c.text;
+  }
+  if (theme.root.fill) v['--root-fill'] = theme.root.fill;
+  if (theme.root.border) v['--root-line'] = theme.root.border;
+  if (theme.root.text) v['--root-ink'] = theme.root.text;
   if (!theme.shadow) v['--shadow'] = 'none';
   return v as CSSProperties;
 }

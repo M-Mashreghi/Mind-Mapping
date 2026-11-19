@@ -40,8 +40,8 @@ export const LAYOUT = {
   vGap: 44,
   premiseGap: 20,
   groupGap: 36,
-  groupPad: 10,
-  groupLabel: 18,
+  groupPad: 8,
+  groupLabel: 16,
   groupMinWidth: 96,
 };
 
@@ -215,6 +215,13 @@ export function layoutMap(nodes: MapNode[], measure: Measure, density: 'compact'
     list.forEach((e, i) => {
       e.x2 = t.x + t.w / 2 - span / 2 + (span * i) / (list.length - 1);
     });
+  }
+
+  // Leave the group's bracket straight below the claim where it can, so lines run vertically.
+  for (const e of edges) {
+    const g = boxes.get(e.from)!;
+    e.x1 = Math.max(g.x + 14, Math.min(g.x + g.w - 14, e.x2));
+    e.y1 = g.y + 4;
   }
 
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
