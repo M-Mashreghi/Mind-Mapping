@@ -19,6 +19,8 @@ export interface DesktopBridge {
   setDirty(dirty: boolean): void;
   setTitle(title: string): void;
   toggleFullScreen(): void;
+  /** Go full screen or leave it (the window on desktop, the page on the web). */
+  setFullScreen(on: boolean): void;
   onCloseRequest(handler: () => void): void;
   onOpenPath(handler: (path: string) => void): void;
   onMenuEdit?(handler: (action: string) => void): void;
@@ -201,6 +203,8 @@ export interface Platform {
   setDirty(dirty: boolean): void;
   setTitle(title: string): void;
   toggleFullScreen(): void;
+  /** Go full screen or leave it (the window on desktop, the page on the web). */
+  setFullScreen(on: boolean): void;
   openExternal(url: string): void;
   /** Save an exported file (image, text…) where the user chooses. */
   exportFile(suggestedName: string, data: Uint8Array | string, filter: FileFilter): Promise<SavedFile | null>;
@@ -226,6 +230,7 @@ function desktopPlatform(bridge: DesktopBridge): Platform {
     setDirty: (d) => bridge.setDirty(d),
     setTitle: (t) => bridge.setTitle(t),
     toggleFullScreen: () => bridge.toggleFullScreen(),
+    setFullScreen: (on) => bridge.setFullScreen(on),
     openExternal: (url) => bridge.openExternal(url),
     exportFile: (name, data, filter) => bridge.exportFile(name, data, filter),
     exportPdf: (svg, w, h, name) => bridge.exportPdf(svg, w, h, name),
@@ -283,6 +288,10 @@ function webPlatform(): Platform {
     setDirty: () => {},
     setTitle: (t) => {
       document.title = t;
+    },
+    setFullScreen: (on) => {
+      if (on && !document.fullscreenElement) void document.documentElement.requestFullscreen?.().catch(() => {});
+      else if (!on && document.fullscreenElement) void document.exitFullscreen().catch(() => {});
     },
     toggleFullScreen: () => {
       if (document.fullscreenElement) void document.exitFullscreen();

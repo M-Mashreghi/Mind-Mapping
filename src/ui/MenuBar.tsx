@@ -79,6 +79,10 @@ export function MenuBar({ editor }: { editor: Editor }) {
             {editor.peers.length > 5 ? <span className="avatar more">+{editor.peers.length - 5}</span> : null}
           </div>
         ) : null}
+        <button className="present-button" onClick={() => editor.startPresentation()} title="Present the map one claim at a time (F5)">
+          <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v11l9.5-5.5z" fill="currentColor" /></svg>
+          Present
+        </button>
         <button
           className={`share-button${editor.collab ? ' live' : ''}`}
           onClick={() => window.dispatchEvent(new CustomEvent('argmap:share'))}

@@ -24,7 +24,7 @@ const SECTIONS: { title: string; ids: string[] }[] = [
   { title: 'Build the argument', ids: ['insert.reason', 'insert.objection', 'insert.child', 'insert.sibling', 'insert.parent', 'insert.root', 'insert.sticky', 'insert.connection', 'edit.implicit', 'edit.detach'] },
   { title: 'Text and style', ids: ['text.bold', 'text.italic', 'text.underline', 'text.strike', 'text.larger', 'text.smaller', 'text.bullets', 'text.numbers', 'edit.copyStyle', 'edit.pasteStyle'] },
   { title: 'Edit', ids: ['edit.text', 'edit.undo', 'edit.redo', 'edit.cut', 'edit.copy', 'edit.paste', 'edit.pasteRoot', 'edit.selectAll', 'edit.delete'] },
-  { title: 'View', ids: ['view.fold', 'view.foldLevel', 'view.unfoldLevel', 'view.zoomIn', 'view.zoomOut', 'view.fit', 'view.recenter', 'view.fullscreen'] },
+  { title: 'View', ids: ['view.fold', 'view.foldLevel', 'view.unfoldLevel', 'view.zoomIn', 'view.zoomOut', 'view.fit', 'view.recenter', 'view.fullscreen', 'view.present'] },
   { title: 'Notes, comments and search', ids: ['edit.note', 'view.notes', 'view.comments', 'edit.link', 'edit.find'] },
   { title: 'File', ids: ['file.new', 'file.open', 'file.save', 'file.saveAs'] },
 ];

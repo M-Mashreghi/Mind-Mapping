@@ -38,6 +38,7 @@ first share or join a map, allow **Local Network** access so others can be found
 - Per-box style: fill, border and text colour, font size, bold/italic/underline/strike, alignment, lists, links
 - Map theme: high-impact style, density, reason/objection/root colours, bundled fonts (including Vazirmatn for Persian), borders, corners, shadows, line style; light and dark mode
 - Words on lines: click a line's label (or double-click the line) to write on it, or turn on Because / But for every line in the theme panel
+- Presentation mode: full screen, one claim at a time in speaking order, with claims still to come shown faint (F5 or the Present button)
 - Numbering labels (by level, hierarchical, sequential)
 - Notes on any box, a notes panel with search, sticky notes, dashed connections between any two boxes (Alt+Click)
 - Find (Ctrl+F) across box text and notes
@@ -133,6 +134,7 @@ choose **Allow**. On Linux, open TCP port 47821 if a firewall is running
 | Detach from parent | D |
 | Fold / fold one level / unfold one level | F / Alt+F / Shift+F |
 | Zoom in / out / fit / recenter | Ctrl++ / Ctrl+- / Ctrl+1 / Ctrl+0 |
+| Present (one claim at a time; ← → or Space to move, Esc to end) | F5 |
 | Move selection | Arrow keys |
 
 The full list is under **Help → Keyboard shortcuts** (Ctrl+/).
