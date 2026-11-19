@@ -2608,3 +2608,117 @@ legend {
   z-index: 3;
   touch-action: none;
 }
+
+/* Words written on the line between a claim and its reason or objection */
+.edge-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 12;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+
+.edge-label {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--ink);
+  font: 400 14px/1.35 'Inter', 'Vazirmatn', system-ui, sans-serif;
+  white-space: nowrap;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  user-select: none;
+  z-index: 1;
+}
+
+.edge-label.auto {
+  color: var(--ink-2, var(--ink));
+}
+
+.edge-label.selected {
+  box-shadow: 0 0 0 1.5px var(--brand);
+}
+
+.edge-label.editing {
+  padding: 0;
+  background: none;
+}
+
+.edge-label input {
+  font: inherit;
+  text-align: center;
+  color: var(--ink);
+  background: var(--surface, var(--bg));
+  border: 1.5px solid var(--brand);
+  border-radius: 6px;
+  padding: 1px 6px;
+  outline: none;
+}
+
+.edge-label-objection.editing input {
+  border-color: var(--objection-line, var(--objection));
+}
+
+/* Bundled emoji art: same size and baseline everywhere */
+img.emoji {
+  display: block;
+  flex: none;
+  pointer-events: none;
+  user-select: none;
+}
+
+.popover.reactions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dock-emoji img.emoji,
+.tb-item img.emoji {
+  margin: auto;
+}
+
+.reaction-chip {
+  gap: 4px;
+  padding: 0 6px 0 5px;
+}
+
+/* Reactions and comments sit in one small pill on the bottom-right corner, clear of the
+   number badge and the note/link badges along the top edge. */
+.node-social {
+  top: auto;
+  left: auto;
+  bottom: -12px;
+  right: 8px;
+  gap: 0;
+  height: 22px;
+  padding: 0 2px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.node-social .reaction-chip,
+.node-social .comment-chip {
+  height: 18px;
+  padding: 0 3px;
+  gap: 2px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+}
+
+.node-social .reaction-chip.mine {
+  background: var(--brand-soft);
+}
+
+.node-social .reaction-chip:not(:disabled):hover,
+.node-social .comment-chip:hover {
+  background: var(--surface-2);
+}

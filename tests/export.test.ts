@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { MapDoc, newMapFile } from '../src/model/doc';
 import { importMindMup } from '../src/model/mindmup';
 import { toMarkdown, toPlainText } from '../src/export/outline';
+import { DEFAULT_THEME, lineLabel } from '../src/model/types';
 
 function sample() {
   const doc = new MapDoc();
@@ -34,6 +35,19 @@ describe('outline export', () => {
     expect(txt.startsWith('Cars')).toBe(true);
     expect(txt).not.toContain('**');
     expect(txt).not.toContain('Main thesis');
+  });
+});
+
+describe('words on lines', () => {
+  it('uses the words written on the line, or Because / But when that is turned on', () => {
+    const { doc, root } = sample();
+    const [reason, objection] = doc.all().filter((n) => n.parent === root);
+    expect(lineLabel(reason, DEFAULT_THEME)).toBe('');
+    expect(lineLabel(objection, { lineLabels: true })).toBe('But');
+    expect(lineLabel(reason, { lineLabels: true })).toBe('Because');
+    doc.setText(reason.id, 'since');
+    expect(lineLabel(doc.get(reason.id)!, { lineLabels: true })).toBe('since');
+    expect(toMarkdown('Cars', doc.all())).toContain('✔ Reason (co-premises) "since":');
   });
 });
 

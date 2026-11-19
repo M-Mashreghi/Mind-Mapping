@@ -1,4 +1,4 @@
-import { LayoutResult } from '../layout/layout';
+import { LayoutResult, placeLineLabels } from '../layout/layout';
 import { Connection, MapNode, Theme } from '../model/types';
 import { boxStyle, textStyle } from '../theme';
 
@@ -219,6 +219,19 @@ export async function buildSvg(input: SvgInput): Promise<{ svg: string; width: n
   for (const e of layout.edges) {
     const color = e.kind === 'reason' ? c.reasonLine : c.objectionLine;
     parts.push(`<path d="${edgePath(e.x1, e.y1, e.x2, e.y2, theme.lineStyle)}" fill="none" stroke="${color}" stroke-width="${edgeW}"/>`);
+  }
+
+  // Words on the lines, on a patch of background so the line stops behind them
+  const ctx = typeof document !== 'undefined' ? document.createElement('canvas').getContext('2d') : null;
+  const labelFont = "400 14px 'Inter', 'Vazirmatn', sans-serif";
+  if (ctx) ctx.font = labelFont;
+  const labelWidth = (t: string) => (ctx ? ctx.measureText(t).width : t.length * 7.5) + 14;
+  for (const l of placeLineLabels(layout, byId, theme, labelWidth)) {
+    const w = Math.min(260, labelWidth(l.text));
+    parts.push(
+      `<rect x="${l.x - w / 2}" y="${l.y - 10}" width="${w}" height="20" rx="6" fill="${c.bg}"/>`,
+      `<text x="${l.x}" y="${l.y}" text-anchor="middle" dominant-baseline="central" font-family="Inter, Vazirmatn, sans-serif" font-size="14" fill="${l.own ? c.ink : c.ink2}">${esc(l.text)}</text>`,
+    );
   }
 
   // Claims and sticky notes

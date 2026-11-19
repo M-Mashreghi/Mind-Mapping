@@ -37,6 +37,7 @@ first share or join a map, allow **Local Network** access so others can be found
 - Open and save `.amap` files (readable JSON); autosave on the desktop, draft recovery in the browser
 - Per-box style: fill, border and text colour, font size, bold/italic/underline/strike, alignment, lists, links
 - Map theme: high-impact style, density, reason/objection/root colours, bundled fonts (including Vazirmatn for Persian), borders, corners, shadows, line style; light and dark mode
+- Words on lines: click a line's label (or double-click the line) to write on it, or turn on Because / But for every line in the theme panel
 - Numbering labels (by level, hierarchical, sequential)
 - Notes on any box, a notes panel with search, sticky notes, dashed connections between any two boxes (Alt+Click)
 - Find (Ctrl+F) across box text and notes
@@ -172,3 +173,7 @@ to a GitHub Release.
 ## Licence
 
 MIT. See [LICENSE](LICENSE).
+
+## Credits
+
+Reaction emoji are [Twemoji](https://github.com/jdecked/twemoji) graphics, © Twitter, Inc and other contributors, licensed under [CC-BY 4.0](https://creativecommons.org/licenses/by/4.0/).

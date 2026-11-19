@@ -82,6 +82,10 @@ const list: Command[] = [
   { id: 'edit.paste', label: 'Paste as child', shortcut: 'Ctrl+V', run: (ed) => void ed.pasteFromMenu(false) },
   { id: 'edit.pasteRoot', label: 'Paste as root node', shortcut: 'Ctrl+Shift+V', run: (ed) => void ed.pasteFromMenu(true) },
   { id: 'edit.text', label: 'Edit text', shortcut: 'Space', run: (ed) => ed.startEditing(), enabled: primaryIsClaim },
+  {
+    id: 'edit.lineLabel', label: 'Write on the line', run: (ed) => ed.editLineLabel(),
+    enabled: (ed) => { const n = ed.doc.get(ed.primary ?? ''); return !!n && (n.kind === 'reason' || n.kind === 'objection' || (n.kind === 'claim' && !!n.parent)); },
+  },
   { id: 'edit.selectSubtree', label: 'Select subtree', run: (ed) => ed.selectSubtree(), enabled: hasSelection },
   { id: 'edit.selectChildren', label: 'Select children', run: (ed) => ed.selectChildren(), enabled: hasSelection },
   { id: 'edit.selectSiblings', label: 'Select siblings', run: (ed) => ed.selectSiblings(), enabled: hasSelection },
@@ -255,7 +259,7 @@ export const menus: { label: string; items: MenuItem[] }[] = [
 
 export const nodeContextMenu: MenuItem[] = [
   'insert.reason', 'insert.objection', 'insert.child', 'insert.sibling', 'insert.parent', '-',
-  'edit.text', 'edit.note', 'edit.link', 'edit.implicit', 'edit.toReason', 'edit.toObjection', '-',
+  'edit.text', 'edit.lineLabel', 'edit.note', 'edit.link', 'edit.implicit', 'edit.toReason', 'edit.toObjection', '-',
   { label: 'Node style', items: ['edit.copyStyle', 'edit.pasteStyle', 'edit.resetStyle'] },
   'edit.cut', 'edit.copy', 'edit.paste', '-',
   'view.fold', 'edit.selectSubtree', '-', 'edit.detach', 'edit.resetPosition', 'edit.delete',

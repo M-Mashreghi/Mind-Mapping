@@ -104,6 +104,9 @@ export function ThemePanel({ editor, onClose }: { editor: Editor; onClose: () =>
             <h3>Line style</h3>
             <Choice value={t.lineStyle} onChange={(lineStyle) => set({ lineStyle })}
               options={[{ value: 'curved', label: 'Curved' }, { value: 'straight', label: 'Straight' }, { value: 'elbow', label: 'Right angles' }]} />
+            <h3>Words on lines</h3>
+            <Choice value={t.lineLabels} onChange={(lineLabels) => set({ lineLabels })}
+              options={[{ value: false, label: 'Only my own' }, { value: true, label: 'Because / But' }]} />
           </>
         ) : null}
       </div>

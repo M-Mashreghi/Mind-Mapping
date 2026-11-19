@@ -93,6 +93,8 @@ export interface Theme {
   density: 'compact' | 'comfortable';
   numbering: Numbering;
   lineStyle: LineStyle;
+  /** Write "Because" / "But" on lines that have no words of their own. */
+  lineLabels: boolean;
   lineWidth: number;
   font: string;
   fontSize: FontSize;
@@ -111,6 +113,7 @@ export const DEFAULT_THEME: Theme = {
   density: 'compact',
   numbering: 'level',
   lineStyle: 'elbow',
+  lineLabels: false,
   lineWidth: 1.5,
   font: 'system',
   fontSize: 's',
@@ -122,6 +125,10 @@ export const DEFAULT_THEME: Theme = {
   radius: 8,
   shadow: true,
 };
+
+/** The words written on the line from a reason or objection to its claim. */
+export const lineLabel = (group: MapNode, theme: Pick<Theme, 'lineLabels'>): string =>
+  group.text.trim() || (theme.lineLabels ? (group.kind === 'objection' ? 'But' : 'Because') : '');
 
 export const isGroup = (n: MapNode | undefined): boolean =>
   !!n && (n.kind === 'reason' || n.kind === 'objection');

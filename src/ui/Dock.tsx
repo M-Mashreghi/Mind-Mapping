@@ -3,6 +3,7 @@ import { Editor } from '../editor';
 import { cmd } from '../commands';
 import { REACTIONS, isTextNode } from '../model/types';
 import { useDismiss } from './Menu';
+import { Emoji } from './Emoji';
 
 type Pop = 'add' | 'react' | null;
 
@@ -66,12 +67,12 @@ export function Dock({ editor }: { editor: Editor }) {
       <div className="dock-item">
         <button className={`dock-btn dock-emoji${pop === 'react' ? ' on' : ''}`} title={canReact ? 'React to the selected box' : 'Select a box to react to it'}
           aria-label="React" disabled={!canReact} onClick={() => setPop(pop === 'react' ? null : 'react')}>
-          <span aria-hidden="true">😊</span>
+          <Emoji e="😊" size={22} />
         </button>
         {pop === 'react' && node ? (
           <div className="popover reactions dock-pop" role="listbox" aria-label="Reactions">
             {REACTIONS.map((r) => (
-              <button key={r} onClick={() => { editor.toggleReaction(node.id, r); close(); }}>{r}</button>
+              <button key={r} title={r} aria-label={r} onClick={() => { editor.toggleReaction(node.id, r); close(); }}><Emoji e={r} size={22} /></button>
             ))}
             <button className="reaction-comment" onClick={() => { editor.toggleNotes(true); close(); }}>Comment…</button>
           </div>
