@@ -188,6 +188,30 @@ export function layoutMap(nodes: MapNode[], measure: Measure, density: 'compact'
   };
   for (const r of childrenOf(null)) shift(r.id, 0, 0);
 
+  // A premise dragged away takes its group's bracket with it, rather than leaving the
+  // bracket (and the line to the claim) behind where the premise used to be.
+  for (const b of boxes.values()) {
+    if (b.kind !== 'reason' && b.kind !== 'objection') continue;
+    const premises = childrenOf(b.id).filter((p) => boxes.has(p.id));
+    if (!premises.some((p) => p.dx || p.dy)) continue;
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (const p of premises) {
+      const pb = boxes.get(p.id)!;
+      minX = Math.min(minX, pb.x);
+      maxX = Math.max(maxX, pb.x + pb.w);
+      minY = Math.min(minY, pb.y);
+      maxY = Math.max(maxY, pb.y + pb.h);
+    }
+    let bx = minX - groupPad;
+    let bw = maxX - minX + 2 * groupPad;
+    if (bw < groupMinWidth) {
+      bx -= (groupMinWidth - bw) / 2;
+      bw = groupMinWidth;
+    }
+    const top = minY - groupPad - groupLabel;
+    Object.assign(b, { x: bx, y: top, w: bw, h: maxY - top + groupPad });
+  }
+
   // ---- edges: from the top of each group to the bottom of its claim
   for (const b of boxes.values()) {
     if (b.kind !== 'reason' && b.kind !== 'objection') continue;

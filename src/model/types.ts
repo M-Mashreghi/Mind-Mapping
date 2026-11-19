@@ -35,6 +35,11 @@ export interface MapNode {
   text: string;
   /** Claim only: an unstated / hidden assumption, drawn with a dashed border. */
   implicit?: boolean;
+  /**
+   * Premise only: set when it argues the other way from its group, e.g. a reason that
+   * sits beside the premises of an objection. Drawn in its own colour with a bar above it.
+   */
+  stance?: GroupKind;
   /** Claim only: hide the reasons and objections below it. */
   collapsed?: boolean;
   /** Root/sticky only: position of the top-centre of the box, in map units. */
@@ -129,6 +134,10 @@ export const DEFAULT_THEME: Theme = {
 /** The words written on the line from a reason or objection to its claim. */
 export const lineLabel = (group: MapNode, theme: Pick<Theme, 'lineLabels'>): string =>
   group.text.trim() || (theme.lineLabels ? (group.kind === 'objection' ? 'But' : 'Because') : '');
+
+/** Whether a premise supports or opposes, from its own stance or else its group's kind. */
+export const stanceOf = (premise: MapNode | undefined, group: MapNode | undefined): GroupKind | undefined =>
+  premise?.stance ?? (group && (group.kind === 'reason' || group.kind === 'objection') ? group.kind : undefined);
 
 export const isGroup = (n: MapNode | undefined): boolean =>
   !!n && (n.kind === 'reason' || n.kind === 'objection');

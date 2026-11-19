@@ -10,7 +10,8 @@ export function toMarkdown(title: string, nodes: MapNode[], withNotes = true): s
   const claim = (n: MapNode, depth: number) => {
     const pad = '  '.repeat(depth);
     const text = oneLine(n.text) || '(empty)';
-    lines.push(`${pad}- ${depth === 0 ? `**${text}**` : text}${n.implicit ? ' _(implicit)_' : ''}`);
+    const own = n.stance ? (n.stance === 'reason' ? ' _(reason)_' : ' _(objection)_') : '';
+    lines.push(`${pad}- ${depth === 0 ? `**${text}**` : text}${n.implicit ? ' _(implicit)_' : ''}${own}`);
     if (withNotes && n.note) lines.push(`${pad}  > ${oneLine(n.note)}`);
     for (const g of kids.get(n.id) ?? []) {
       lines.push(`${pad}  - ${g.kind === 'reason' ? '✔ Reason' : '✘ Objection'}${(kids.get(g.id) ?? []).length > 1 ? ' (co-premises)' : ''}${g.text.trim() ? ` "${oneLine(g.text)}"` : ''}:`);

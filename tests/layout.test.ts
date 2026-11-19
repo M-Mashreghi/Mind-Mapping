@@ -21,6 +21,51 @@ function buildDoc() {
   return { doc, root };
 }
 
+describe('moving and mixing premises', () => {
+  it('takes the bracket and its line along when a premise is dragged away', () => {
+    const { doc, root } = buildDoc();
+    const o = doc.all().find((n) => n.kind === 'objection' && n.parent === root)!;
+    const premise = doc.all().find((n) => n.parent === o.id)!;
+    doc.nudge(premise.id, 300, 200);
+    const { boxes, edges } = layoutMap(doc.all(), approxMeasure);
+    const g = boxes.get(o.id)!;
+    const p = boxes.get(premise.id)!;
+    expect(p.x).toBeGreaterThanOrEqual(g.x);
+    expect(p.x + p.w).toBeLessThanOrEqual(g.x + g.w);
+    expect(p.y - g.y).toBeGreaterThan(0);
+    expect(p.y - g.y).toBeLessThan(40);
+    const e = edges.find((x) => x.from === o.id)!;
+    expect(e.y1).toBeCloseTo(g.y + 4);
+  });
+
+  it('lets one premise argue the other way from its group', () => {
+    const { doc, root } = buildDoc();
+    const o = doc.all().find((n) => n.kind === 'objection' && n.parent === root)!;
+    const first = doc.all().find((n) => n.parent === o.id)!;
+    // Alone in its group, the whole group changes.
+    doc.setPremiseStance(first.id, 'reason');
+    expect(doc.get(o.id)!.kind).toBe('reason');
+    doc.setGroupKind(o.id, 'objection');
+    const second = doc.addPremise(o.id, first.id, 'beside it')!;
+    doc.setPremiseStance(second, 'reason');
+    expect(doc.get(o.id)!.kind).toBe('objection');
+    expect(doc.get(second)!.stance).toBe('reason');
+    // Turning the group into reasons makes the stance redundant.
+    doc.setGroupKind(o.id, 'reason');
+    expect(doc.get(second)!.stance).toBeUndefined();
+  });
+
+  it('keeps a reason a reason when it is dropped among the premises of an objection', () => {
+    const { doc, root } = buildDoc();
+    const r = doc.all().find((n) => n.kind === 'reason' && n.parent === root)!;
+    const o = doc.all().find((n) => n.kind === 'objection' && n.parent === root)!;
+    const reasonPremise = doc.all().find((n) => n.parent === r.id)!;
+    doc.move(reasonPremise.id, o.id);
+    expect(doc.get(reasonPremise.id)!.parent).toBe(o.id);
+    expect(doc.get(reasonPremise.id)!.stance).toBe('reason');
+  });
+});
+
 describe('layout', () => {
   it('places claims without overlap and groups around their premises', () => {
     const { doc } = buildDoc();

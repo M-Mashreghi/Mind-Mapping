@@ -1,5 +1,5 @@
 import { LayoutResult, placeLineLabels } from '../layout/layout';
-import { Connection, MapNode, Theme } from '../model/types';
+import { Connection, MapNode, Theme, stanceOf } from '../model/types';
 import { boxStyle, textStyle } from '../theme';
 
 import interRegular from '@fontsource/inter/files/inter-latin-400-normal.woff2?url';
@@ -243,7 +243,8 @@ export async function buildSvg(input: SvgInput): Promise<{ svg: string; width: n
     const bs = boxStyle(n, theme);
     const sticky = n.kind === 'sticky';
     const isRoot = n.kind === 'claim' && n.parent === null;
-    const group = n.parent ? byId.get(n.parent)?.kind : undefined;
+    const groupNode = n.parent ? byId.get(n.parent) : undefined;
+    const group = stanceOf(n, groupNode);
     const inReason = group === 'reason', inObjection = group === 'objection';
     const fill = (bs.background as string)
       || (sticky ? 'url(#sticky)' : isRoot ? c.rootFill : inReason ? c.reasonFill : inObjection ? c.objectionFill : n.implicit ? c.surface2 : c.surface);
@@ -261,6 +262,10 @@ export async function buildSvg(input: SvgInput): Promise<{ svg: string; width: n
           `<rect x="${box.x}" y="${box.y}" width="${box.w}" height="${Math.round(box.h * 0.14)}" fill="rgba(150,120,0,0.06)"/>`
         : `<rect x="${box.x}" y="${box.y}" width="${box.w}" height="${box.h}" rx="${rx}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"${n.implicit ? ' stroke-dasharray="6 4"' : ''}${theme.shadow && isRoot ? ' filter="url(#sh)"' : ''}/>`,
     );
+    // A premise arguing the other way from its group gets a bar of its own colour above it.
+    if (n.stance && groupNode && n.stance !== groupNode.kind) {
+      parts.push(`<path d="M${box.x + 4} ${box.y - 11} H${box.x + box.w - 4}" stroke="${inReason ? c.reasonLine : c.objectionLine}" stroke-width="${edgeW + 1}" stroke-linecap="round"/>`);
+    }
     const px = Number(ts.fontSize);
     const lh = Math.round(px * 1.43);
     const [, padX] = String(ts.padding).split(' ').map((p) => parseFloat(p));
