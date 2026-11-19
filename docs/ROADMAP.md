@@ -38,7 +38,7 @@ Each phase ships as its own pull request.
 - Guests can join from a plain browser served by the host
 - Comments and emoji reactions on nodes; optional read-only guests
 
-## Phase 5: Google Drive
+## Phase 5: Google Drive ✅
 
 - Sign in with Google (desktop OAuth with PKCE, `drive.file` scope)
 - Open from Drive, save to Drive, autosave back to Drive, conflict handling

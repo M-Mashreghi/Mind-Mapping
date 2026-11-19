@@ -11,6 +11,7 @@ import { NotesPanel } from './ui/NotesPanel';
 import { FindBar } from './ui/FindBar';
 import { ThemePanel } from './ui/ThemePanel';
 import { ShareDialog } from './ui/ShareDialog';
+import { DriveDialog } from './ui/DriveDialog';
 import { isClaim } from './model/types';
 
 const editor = new Editor(domMeasure);
@@ -25,7 +26,7 @@ function isTextField(el: EventTarget | null): boolean {
 export function App() {
   useSyncExternalStore(editor.subscribe, editor.getVersion);
   const [menu, setMenu] = useState<{ kind: 'node' | 'canvas'; x: number; y: number } | null>(null);
-  const [dialog, setDialog] = useState<'shortcuts' | 'about' | 'theme' | 'history' | 'share' | null>(editor.pendingJoin ? 'share' : null);
+  const [dialog, setDialog] = useState<'shortcuts' | 'about' | 'theme' | 'history' | 'share' | 'drive' | null>(editor.pendingJoin ? 'share' : null);
   const closeMenu = useCallback(() => setMenu(null), []);
 
   // Re-measure once web fonts are ready.
@@ -39,7 +40,9 @@ export function App() {
     const onTheme = () => setDialog('theme');
     const onHistory = () => setDialog('history');
     const onShare = () => setDialog('share');
+    const onDrive = () => setDialog('drive');
     window.addEventListener('argmap:share', onShare);
+    window.addEventListener('argmap:drive', onDrive);
     window.addEventListener('argmap:history', onHistory);
     window.addEventListener('argmap:shortcuts', onShortcuts);
     window.addEventListener('argmap:about', onAbout);
@@ -47,6 +50,7 @@ export function App() {
     return () => {
       window.removeEventListener('argmap:theme', onTheme);
       window.removeEventListener('argmap:share', onShare);
+      window.removeEventListener('argmap:drive', onDrive);
       window.removeEventListener('argmap:history', onHistory);
       window.removeEventListener('argmap:shortcuts', onShortcuts);
       window.removeEventListener('argmap:about', onAbout);
@@ -191,6 +195,7 @@ export function App() {
       {dialog === 'about' ? <AboutDialog onClose={() => setDialog(null)} /> : null}
       {dialog === 'theme' ? <ThemePanel editor={editor} onClose={() => setDialog(null)} /> : null}
       {dialog === 'history' ? <HistoryDialog editor={editor} onClose={() => setDialog(null)} /> : null}
+      {dialog === 'drive' ? <DriveDialog editor={editor} onClose={() => setDialog(null)} /> : null}
       {dialog === 'share' ? <ShareDialog editor={editor} onClose={() => setDialog(null)} /> : null}
     </div>
   );

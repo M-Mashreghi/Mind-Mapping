@@ -42,6 +42,8 @@ export interface FileState {
   name: string;
   path?: string;
   dirty: boolean;
+  /** Set when the map lives in Google Drive. */
+  drive?: { id: string; modifiedTime: string };
 }
 
 const CLIP_PREFIX = 'argument-mapper/clip:';
@@ -204,7 +206,7 @@ export class Editor {
   }
 
   private scheduleAutosave(): void {
-    if (platform.kind !== 'desktop' || !this.file.path) return;
+    if (platform.kind !== 'desktop' || !(this.file.path || this.file.drive) || this.driveConflict) return;
     if (this.autosaveTimer) clearTimeout(this.autosaveTimer);
     this.autosaveTimer = setTimeout(() => void this.save(), 1500);
   }
@@ -305,20 +307,10 @@ export class Editor {
   }
 
   async save(asNew = false): Promise<boolean> {
+    if (this.file.drive && !asNew) return this.saveToDrive();
     if (this.autosaveTimer) clearTimeout(this.autosaveTimer);
     this.commitEditing();
-    const current = this.doc.toFile();
-    const snapshot: Snapshot = {
-      savedAt: new Date().toISOString(), title: current.title, nodes: current.nodes,
-      connections: current.connections, theme: current.theme,
-    };
-    // Keep one version per 10 minutes of work, so autosave doesn't flood the history.
-    const last = this.history[0];
-    const same = last && JSON.stringify([last.nodes, last.connections, last.theme, last.title]) ===
-      JSON.stringify([snapshot.nodes, snapshot.connections, snapshot.theme, snapshot.title]);
-    const recent = last && Date.now() - Date.parse(last.savedAt) < 10 * 60 * 1000;
-    const history = same ? this.history : recent ? [snapshot, ...this.history.slice(1)] : [snapshot, ...this.history].slice(0, 25);
-    const content = serialize({ ...current, history });
+    const { content, history } = this.fileContent();
     try {
       const saved = asNew || !this.file.path
         ? await platform.saveAs(content, this.file.path ? this.file.name : this.suggestedName())
@@ -336,6 +328,88 @@ export class Editor {
       return true;
     } catch (e) {
       this.flash(`Could not save: ${(e as Error).message}`, 'error');
+      return false;
+    }
+  }
+
+  /** The map as file text, with a version snapshot added to its history. */
+  private fileContent(): { content: string; history: Snapshot[] } {
+    const current = this.doc.toFile();
+    const snapshot: Snapshot = {
+      savedAt: new Date().toISOString(), title: current.title, nodes: current.nodes,
+      connections: current.connections, theme: current.theme,
+    };
+    // Keep one version per 10 minutes of work, so autosave doesn't flood the history.
+    const last = this.history[0];
+    const same = last && JSON.stringify([last.nodes, last.connections, last.theme, last.title]) ===
+      JSON.stringify([snapshot.nodes, snapshot.connections, snapshot.theme, snapshot.title]);
+    const recent = last && Date.now() - Date.parse(last.savedAt) < 10 * 60 * 1000;
+    const history = same ? this.history : recent ? [snapshot, ...this.history.slice(1)] : [snapshot, ...this.history].slice(0, 25);
+    return { content: serialize({ ...current, history }), history };
+  }
+
+  // ------------------------------------------------------------ Google Drive
+
+  /** Set when Drive has a newer version than ours; autosave pauses until the user decides. */
+  driveConflict = false;
+  private driveSaving = false;
+
+  /** Save to Google Drive: the current Drive file, or a new one. */
+  async saveToDrive(asNew = false): Promise<boolean> {
+    const drive = platform.drive;
+    if (!drive) return false;
+    if (this.autosaveTimer) clearTimeout(this.autosaveTimer);
+    if (this.driveSaving) {
+      this.scheduleAutosave();
+      return false;
+    }
+    this.commitEditing();
+    const { content, history } = this.fileContent();
+    const target = asNew ? undefined : this.file.drive;
+    const name = target ? this.file.name : this.suggestedName();
+    this.driveSaving = true;
+    try {
+      let res = await drive.save({ id: target?.id, name, content, expectedModified: target?.modifiedTime });
+      if ('conflict' in res) {
+        const when = new Date(res.conflict.modifiedTime).toLocaleString();
+        const replace = window.confirm(
+          `“${res.conflict.name}” was changed in Google Drive at ${when}, maybe on another computer.\n\n` +
+            'OK: replace it with your version.\nCancel: keep both, and save your version as a new file.',
+        );
+        res = replace
+          ? await drive.save({ id: target!.id, name, content, force: true })
+          : await drive.save({ name: name.replace(/(\.amap)?$/, ' (my copy).amap'), content });
+        if ('conflict' in res) throw new Error('The file keeps changing in Drive. Try again.');
+      }
+      this.history = history;
+      this.file = { name: res.file.name, dirty: false, drive: { id: res.file.id, modifiedTime: res.file.modifiedTime } };
+      this.driveConflict = false;
+      platform.setDirty(false);
+      this.clearDraft();
+      this.updateWindowTitle();
+      this.emit();
+      return true;
+    } catch (e) {
+      this.flash(`Could not save to Google Drive: ${(e as Error).message}`, 'error');
+      return false;
+    } finally {
+      this.driveSaving = false;
+    }
+  }
+
+  /** Open a map from Google Drive. */
+  async openFromDrive(id: string): Promise<boolean> {
+    const drive = platform.drive;
+    if (!drive || !(await this.confirmDiscard())) return false;
+    try {
+      const { file, content } = await drive.open(id);
+      const parsed = file.name.toLowerCase().endsWith('.mup') ? importMindMup(content) : parseMapFile(content);
+      this.clearDraft();
+      this.loadFile(parsed, { name: file.name, drive: { id: file.id, modifiedTime: file.modifiedTime } });
+      this.driveConflict = false;
+      return true;
+    } catch (e) {
+      this.flash(`Could not open from Google Drive: ${(e as Error).message}`, 'error');
       return false;
     }
   }

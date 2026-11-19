@@ -1,9 +1,14 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, safeStorage, shell } from 'electron';
 import { existsSync, promises as fs } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { Bonjour, Service } from 'bonjour-service';
 import { CollabServer } from './collab-server';
+import { GoogleDrive } from './google-drive';
+import googleClient from './google-client.json';
+
+/** Filled in at build time from the GOOGLE_CLIENT_SECRET environment variable (see scripts/build-electron.mjs). */
+declare const __GOOGLE_CLIENT_SECRET__: string;
 
 const FILE_FILTERS = [{ name: 'Argument maps', extensions: ['amap'] }];
 const MAX_RECENT = 10;
@@ -265,6 +270,76 @@ app.on('before-quit', () => {
     /* ignore */
   }
 });
+
+// ------------------------------------------------------------ Google Drive
+
+const TEST_GOOGLE = process.env.ARGMAP_TEST_GOOGLE_ENDPOINT;
+
+/** The OAuth client comes from electron/google-client.json, or the environment for testing. */
+const drive = new GoogleDrive(
+  {
+    clientId: process.env.ARGMAP_GOOGLE_CLIENT_ID ?? googleClient.clientId,
+    clientSecret: process.env.ARGMAP_GOOGLE_CLIENT_SECRET ?? (googleClient.clientSecret || __GOOGLE_CLIENT_SECRET__),
+    // End-to-end tests point the app at a fake Google.
+    ...(TEST_GOOGLE
+      ? { authUrl: `${TEST_GOOGLE}/auth`, tokenUrl: `${TEST_GOOGLE}/token`, apiBase: `${TEST_GOOGLE}/drive`, uploadBase: `${TEST_GOOGLE}/upload` }
+      : {}),
+  },
+  {
+    // The refresh token is encrypted with the OS keychain when one is available.
+    async load() {
+      const file = path.join(app.getPath('userData'), 'google-token');
+      try {
+        const buf = await fs.readFile(file);
+        return buf[0] === 0x7b ? buf.toString('utf8') : safeStorage.decryptString(buf);
+      } catch {
+        return null;
+      }
+    },
+    async save(value) {
+      const file = path.join(app.getPath('userData'), 'google-token');
+      if (value === null) {
+        await fs.rm(file, { force: true });
+        return;
+      }
+      const data = safeStorage.isEncryptionAvailable() ? safeStorage.encryptString(value) : Buffer.from(value, 'utf8');
+      await fs.writeFile(file, data, { mode: 0o600 });
+    },
+  },
+  // In tests the fake consent page approves at once, so just follow its redirect.
+  (url) => void (TEST_GOOGLE ? fetch(url).catch(() => {}) : shell.openExternal(url)),
+);
+
+const driveCall = <A extends unknown[], R>(fn: (...args: A) => Promise<R>) =>
+  async (_e: unknown, ...args: A) => {
+    try {
+      return { ok: true, value: await fn(...args) };
+    } catch (err) {
+      return { ok: false, error: (err as Error).message };
+    }
+  };
+
+ipcMain.handle('drive:status', driveCall(() => drive.status()));
+ipcMain.handle('drive:signIn', driveCall(async () => {
+  const status = await drive.signIn();
+  if (win) {
+    if (win.isMinimized()) win.restore();
+    win.focus();
+  }
+  return status;
+}));
+ipcMain.handle('drive:cancelSignIn', driveCall(async () => drive.cancelSignIn()));
+ipcMain.handle('drive:signOut', driveCall(() => drive.signOut()));
+ipcMain.handle('drive:list', driveCall(() => drive.list()));
+ipcMain.handle('drive:open', driveCall((id: string) => drive.open(String(id))));
+ipcMain.handle('drive:save', driveCall((opts: { id?: string; name: string; content: string; expectedModified?: string; force?: boolean }) =>
+  drive.save({
+    id: opts.id ? String(opts.id) : undefined,
+    name: String(opts.name),
+    content: String(opts.content),
+    expectedModified: opts.expectedModified ? String(opts.expectedModified) : undefined,
+    force: !!opts.force,
+  })));
 
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
