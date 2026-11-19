@@ -24,7 +24,7 @@ Each phase ships as its own pull request.
 - Export PNG, SVG, PDF, outline (text/Markdown), notes; import MindMup `.mup` files
 - Version history stored in the file
 
-## Phase 3: desktop packaging
+## Phase 3: desktop packaging ✅
 
 - File associations for `.amap`, open from the command line
 - Windows installer and Linux AppImage + .deb via electron-builder

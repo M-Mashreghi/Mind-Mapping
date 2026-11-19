@@ -16,27 +16,105 @@
     "start": "npm run build && electron .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "dist": "npm run build && electron-builder --publish never",
+    "dist:linux": "npm run build && electron-builder --linux --publish never",
+    "dist:win": "npm run build && electron-builder --win --publish never"
   },
-  "dependencies": {
+  "devDependencies": {
     "@fontsource/caveat": "^5.3.0",
     "@fontsource/inter": "^5.3.0",
     "@fontsource/merriweather": "^5.3.0",
     "@fontsource/vazirmatn": "^5.3.0",
-    "react": "^19.3.1",
-    "react-dom": "^19.3.1",
-    "yjs": "^13.6.33"
-  },
-  "devDependencies": {
     "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.3.0",
     "electron": "^45.4.1",
+    "electron-builder": "^26.18.0",
     "esbuild": "^0.28.2",
     "jsdom": "^31.0.1",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
     "typescript": "^5.9.3",
     "vite": "^8.3.8",
-    "vitest": "^5.1.1"
-  }
+    "vitest": "^5.1.1",
+    "yjs": "^13.6.33"
+  },
+  "homepage": "https://github.com/M-Mashreghi/Mind-Mapping",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/M-Mashreghi/Mind-Mapping.git"
+  },
+  "build": {
+    "appId": "org.argumentmapper.app",
+    "productName": "Argument Mapper",
+    "copyright": "Copyright \u00a9 2026 Argument Mapper contributors",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**",
+      "dist-electron/**",
+      "package.json",
+      "!**/*.map"
+    ],
+    "asar": true,
+    "fileAssociations": [
+      {
+        "ext": "amap",
+        "name": "Argument map",
+        "description": "Argument Mapper map",
+        "mimeType": "application/x-argument-map",
+        "role": "Editor"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "Argument-Mapper-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "Argument-Mapper-Portable-${version}.${ext}"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Education",
+      "icon": "build/icon.png",
+      "synopsis": "Free argument mapping",
+      "maintainer": "Argument Mapper contributors <noreply@users.noreply.github.com>",
+      "artifactName": "Argument-Mapper-${version}-${arch}.${ext}",
+      "syncDesktopName": true
+    },
+    "deb": {
+      "depends": [
+        "libnotify4",
+        "libxtst6",
+        "libnss3"
+      ]
+    }
+  },
+  "desktopName": "argument-mapper.desktop"
 }

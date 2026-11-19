@@ -1,5 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
-import { promises as fs } from 'node:fs';
+import { existsSync, promises as fs } from 'node:fs';
 import path from 'node:path';
 
 const FILE_FILTERS = [{ name: 'Argument maps', extensions: ['amap'] }];
@@ -53,6 +53,26 @@ async function writeMap(file: string, content: string) {
   return { name: path.basename(file), path: file };
 }
 
+/** The first .amap file named on a command line (double-click on a file, "Open with"). */
+function fileFromArgs(argv: string[]): string | null {
+  for (const arg of argv.slice(1)) {
+    if (arg.startsWith('-') || !arg.toLowerCase().endsWith('.amap')) continue;
+    const full = path.resolve(arg);
+    if (existsSync(full)) return full;
+  }
+  return null;
+}
+
+let pendingOpen: string | null = fileFromArgs(process.argv);
+
+function sendOpen(file: string) {
+  if (!win) {
+    pendingOpen = file;
+    return;
+  }
+  win.webContents.send('app:open-path', file);
+}
+
 function createWindow() {
   win = new BrowserWindow({
     width: 1280,
@@ -98,6 +118,12 @@ function createWindow() {
     else if (choice === 1) {
       forceClose = true;
       win.close();
+    }
+  });
+  win.webContents.on('did-finish-load', () => {
+    if (pendingOpen) {
+      sendOpen(pendingOpen);
+      pendingOpen = null;
     }
   });
   win.on('closed', () => {
@@ -178,11 +204,18 @@ const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
   app.quit();
 } else {
-  app.on('second-instance', () => {
+  app.on('second-instance', (_e, argv) => {
+    const file = fileFromArgs(argv);
+    if (file) sendOpen(file);
     if (win) {
       if (win.isMinimized()) win.restore();
       win.focus();
     }
+  });
+  // macOS sends files through this event instead of argv.
+  app.on('open-file', (e, file) => {
+    e.preventDefault();
+    sendOpen(file);
   });
   app.whenReady().then(createWindow);
   app.on('window-all-closed', () => app.quit());

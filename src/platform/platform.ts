@@ -20,6 +20,7 @@ export interface DesktopBridge {
   setTitle(title: string): void;
   toggleFullScreen(): void;
   onCloseRequest(handler: () => void): void;
+  onOpenPath(handler: (path: string) => void): void;
   confirmClose(): void;
   openExternal(url: string): void;
   exportFile(suggestedName: string, data: Uint8Array | string, filter: FileFilter): Promise<SavedFile | null>;
