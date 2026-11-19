@@ -3,8 +3,8 @@ import { MapFile, MapNode, NodeStyle, Snapshot, Theme, FontSize, isClaim, isGrou
 import { importMindMup } from './model/mindmup';
 import { buildSvg, readColors, svgToPng } from './export/svg';
 import { toMarkdown, toPlainText } from './export/outline';
-import { CollabSession, ControlMessage, Peer, PeerUser, Role, loadUser, requestAccess, saveUser } from './collab/session';
-import type { HostInfo, HostState } from './platform/platform';
+import { CollabSession, ControlMessage, Peer, PeerUser, Role, deviceIdentity, loadUser, requestAccess, saveUser } from './collab/session';
+import type { HostInfo, HostState, Invitation, Nearby } from './platform/platform';
 
 export interface CollabState {
   role: 'host' | 'guest';
@@ -81,6 +81,12 @@ export class Editor {
   joining: { address: string; want: Role; waiting: boolean; abort: AbortController } | null = null;
   /** While hosting: who is asking to join, who is in, and who is always allowed. */
   hostState: HostState | null = null;
+  /** Shared maps and people found on the local network (desktop only). */
+  nearby: Nearby = { hosts: [], people: [] };
+  /** Invitations to join someone's map, newest last. */
+  invitations: Invitation[] = [];
+  /** Whether others on the network can see this app and invite us. */
+  lanVisible = true;
 
   private measure: (node: MapNode, theme: Theme) => Size;
   private styleClip: NodeStyle | undefined;
@@ -127,6 +133,26 @@ export class Editor {
       this.hostState = s;
       this.emit();
     });
+    if (platform.lan) {
+      try {
+        this.lanVisible = localStorage.getItem('argument-mapper:lan-visible') !== 'off';
+      } catch {
+        /* ignore */
+      }
+      platform.lan.onNearby((n) => {
+        this.nearby = n;
+        this.emit();
+      });
+      platform.lan.onInvitation((inv) => {
+        this.invitations = [...this.invitations.filter((i) => `${i.address}:${i.port}` !== `${inv.address}:${inv.port}`), inv].slice(-5);
+        this.emit();
+      });
+      this.announce();
+      void platform.lan.nearby().then((n) => {
+        this.nearby = n;
+        this.emit();
+      }).catch(() => {});
+    }
   }
 
   // ------------------------------------------------------------ store plumbing
@@ -1161,6 +1187,57 @@ export class Editor {
     this.user = { name: user.name.trim().slice(0, 40) || 'Guest', color: user.color };
     saveUser(this.user);
     this.collab?.session.setPresence({ user: this.user });
+    this.announce();
+    this.emit();
+  }
+
+  /** Tell the network who we are (or that we'd rather not be seen). */
+  private announce(): void {
+    if (!platform.lan) return;
+    void platform.lan
+      .setMe({
+        name: this.user?.name ?? '',
+        color: this.user?.color ?? '',
+        deviceId: deviceIdentity().deviceId,
+        visible: this.lanVisible && !!this.user,
+      })
+      .catch(() => {});
+  }
+
+  setLanVisible(visible: boolean): void {
+    this.lanVisible = visible;
+    try {
+      localStorage.setItem('argument-mapper:lan-visible', visible ? 'on' : 'off');
+    } catch {
+      /* ignore */
+    }
+    this.announce();
+    this.emit();
+  }
+
+  /** The host invites someone they can see on the network. */
+  async inviteNearby(deviceId: string, role: Role): Promise<void> {
+    if (!platform.lan || !this.user) return;
+    const who = this.nearby.people.find((p) => p.deviceId === deviceId);
+    await platform.lan.invite(deviceId, role, { name: this.user.name, color: this.user.color });
+    this.flash(`Invitation sent${who ? ` to ${who.name}` : ''}.`);
+  }
+
+  /** Accept an invitation: join straight away, no waiting for the host. */
+  async acceptInvitation(id: string): Promise<boolean> {
+    const inv = this.invitations.find((i) => i.id === id);
+    if (!inv) return false;
+    this.dismissInvitation(id);
+    try {
+      return await this.join(`${inv.address}:${inv.port}`, inv.role, inv.invite);
+    } catch (e) {
+      this.flash((e as Error).message, 'error');
+      return false;
+    }
+  }
+
+  dismissInvitation(id: string): void {
+    this.invitations = this.invitations.filter((i) => i.id !== id);
     this.emit();
   }
 
@@ -1184,7 +1261,7 @@ export class Editor {
   async startHosting(): Promise<void> {
     if (!this.user) throw new Error('Enter your name first.');
     if (this.collab) return;
-    const host = await platform.hostStart(this.doc.title);
+    const host = await platform.hostStart(this.doc.title, this.user.name);
     const session = new CollabSession(`ws://127.0.0.1:${host.port}`, host.hostTicket, this.doc.ydoc, this.user, () => this.emit());
     const addr = host.addresses[0] ?? '127.0.0.1';
     this.collab = { role: 'host', readOnly: false, session, host, httpBase: `http://${addr}:${host.port}` };
@@ -1203,7 +1280,7 @@ export class Editor {
    * Ask to join a map someone is sharing, as an editor or a viewer, and wait until
    * the host lets us in. Resolves false if we stopped waiting.
    */
-  async join(address: string, want: Role = 'edit'): Promise<boolean> {
+  async join(address: string, want: Role = 'edit', invite?: string): Promise<boolean> {
     if (!this.user) throw new Error('Enter your name first.');
     if (this.joining) return false;
     const { httpBase, wsBase } = parseAddress(address);
@@ -1214,6 +1291,7 @@ export class Editor {
     try {
       admitted = await requestAccess(httpBase, { ...this.user, want }, {
         signal: abort.signal,
+        invite,
         onWaiting: () => {
           if (this.joining) this.joining.waiting = true;
           this.emit();

@@ -84,7 +84,11 @@ export function MenuBar({ editor }: { editor: Editor }) {
           onClick={() => window.dispatchEvent(new CustomEvent('argmap:share'))}
           title="Work together on your local network"
         >
-          {editor.collab ? (editor.collab.session.status === 'connected' ? 'Live' : 'Reconnecting…') : 'Share'}
+          {editor.collab
+            ? editor.collab.session.status === 'connected'
+              ? <>Live <span className="live-count" title="People in this map, you included">· {editor.peers.length + 1}</span></>
+              : 'Reconnecting…'
+            : 'Share'}
         </button>
       </div>
     </header>

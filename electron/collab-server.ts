@@ -38,6 +38,8 @@ export interface ServerOptions {
   trust?: TrustStore;
   /** How long a join request waits for the host before it expires. */
   requestTimeoutMs?: number;
+  /** The map's title, shown to people looking for shared maps. */
+  title?: string;
 }
 
 export interface ServerInfo {
@@ -84,6 +86,8 @@ export interface Guest {
 export interface HostState {
   requests: JoinRequest[];
   guests: Guest[];
+  /** People the host invited who haven't come in yet. */
+  invited: Array<{ deviceId: string; name: string; role: Role }>;
   trusted: Array<Omit<TrustedPerson, 'keyHash'>>;
 }
 
@@ -160,6 +164,8 @@ export class CollabServer extends EventEmitter {
   private tickets = new Map<string, Ticket>();
   private pending = new Map<string, Pending>();
   private trusted: TrustedPerson[] = [];
+  private invites = new Map<string, { token: string; deviceId: string; name: string; role: Role }>();
+  title = '';
   private trust: TrustStore = memoryTrust();
   private requestTimeoutMs = 5 * 60 * 1000;
   private http: http.Server | null = null;
@@ -209,6 +215,9 @@ export class CollabServer extends EventEmitter {
         .filter((t) => !t.isHost)
         .map((t) => ({ id: t.id, deviceId: t.deviceId, name: t.name, color: t.color, role: t.role, online: online.has(t.id), trusted: trustedIds.has(t.deviceId) })),
       trusted: this.trusted.map(({ keyHash: _k, ...rest }) => rest),
+      invited: [...this.invites.values()]
+        .filter((i) => ![...this.tickets.values()].some((t) => t.deviceId === i.deviceId && online.has(t.id)))
+        .map(({ deviceId, name, role }) => ({ deviceId, name, role })),
     };
   }
 
@@ -237,8 +246,21 @@ export class CollabServer extends EventEmitter {
     return t;
   }
 
+  /** People in the map right now, the host included. */
+  get peopleHere(): number {
+    return new Set([...this.conns.values()].map((c) => c.ticket.id)).size;
+  }
+
+  /** Invite someone in: when they ask with this token from that device, they get in at once. */
+  createInvite(deviceId: string, name: string, role: Role): string {
+    const t = token();
+    this.invites.set(deviceId, { token: t, deviceId, name: clean(name, 40), role });
+    this.changed();
+    return t;
+  }
+
   /** Someone on the network asks to come in. */
-  async requestJoin(body: { deviceId?: unknown; key?: unknown; name?: unknown; color?: unknown; want?: unknown }): Promise<JoinAnswer> {
+  async requestJoin(body: { deviceId?: unknown; key?: unknown; name?: unknown; color?: unknown; want?: unknown; invite?: unknown }): Promise<JoinAnswer> {
     const deviceId = clean(body.deviceId, 64);
     const key = clean(body.key, 128);
     const name = clean(body.name, 40) || 'Guest';
@@ -246,6 +268,15 @@ export class CollabServer extends EventEmitter {
     const want: Role = body.want === 'view' ? 'view' : 'edit';
     if (deviceId.length < 8 || key.length < 16) throw new Error('bad request');
     const keyHash = sha(key);
+
+    const inv = this.invites.get(deviceId);
+    if (inv && body.invite && inv.token === body.invite) {
+      // Invited: in at once, never with more than the host offered.
+      const role: Role = inv.role === 'edit' && want === 'edit' ? 'edit' : 'view';
+      const t = this.issue(deviceId, name, color, role);
+      this.changed();
+      return { status: 'approved', ticket: t.token, role: t.role, color: t.color };
+    }
 
     const trusted = this.trusted.find((t) => t.deviceId === deviceId && t.keyHash === keyHash);
     if (trusted && (want === 'view' || trusted.role === 'edit')) {
@@ -361,6 +392,7 @@ export class CollabServer extends EventEmitter {
     if (!t) return;
     this.control(t, { type: 'removed' });
     this.tickets.delete(t.token);
+    this.invites.delete(t.deviceId);
     for (const [ws, c] of this.conns) if (c.ticket === t) setTimeout(() => this.close(ws), 50);
     if (forget) await this.forget(t.deviceId, false);
     this.changed();
@@ -380,6 +412,7 @@ export class CollabServer extends EventEmitter {
     const staticDir = opts.staticDir;
     if (opts.trust) this.trust = opts.trust;
     if (opts.requestTimeoutMs) this.requestTimeoutMs = opts.requestTimeoutMs;
+    this.title = opts.title ?? '';
     try {
       this.trusted = (await this.trust.load()).filter((t) => t && t.deviceId && t.keyHash);
     } catch {
@@ -403,6 +436,9 @@ export class CollabServer extends EventEmitter {
           return;
         }
         try {
+          if (reqUrl.pathname === '/api/info') {
+            return json(res, 200, { app: 'argument-mapper', title: this.title, people: this.peopleHere });
+          }
           if (reqUrl.pathname === '/api/join' && req.method === 'POST') {
             const raw = await readBody(req, 4096);
             return json(res, 200, await this.requestJoin(JSON.parse(raw)));
@@ -570,6 +606,7 @@ export class CollabServer extends EventEmitter {
     this.info = null;
     this.tickets.clear();
     this.pending.clear();
+    this.invites.clear();
     this.removeAllListeners();
     this.doc.destroy();
   }

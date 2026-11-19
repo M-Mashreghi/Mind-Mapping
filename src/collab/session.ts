@@ -76,7 +76,7 @@ export interface Admission {
 export async function requestAccess(
   httpBase: string,
   me: PeerUser & { want: Role },
-  opts: { onWaiting?: () => void; signal?: AbortSignal; fetchImpl?: typeof fetch; identity?: { deviceId: string; key: string } } = {},
+  opts: { onWaiting?: () => void; signal?: AbortSignal; fetchImpl?: typeof fetch; identity?: { deviceId: string; key: string }; invite?: string } = {},
 ): Promise<Admission> {
   const f = opts.fetchImpl ?? fetch;
   const id = opts.identity ?? deviceIdentity();
@@ -86,7 +86,7 @@ export async function requestAccess(
     res = await f(`${httpBase}/api/join`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...id, name: me.name, color: me.color, want: me.want }),
+      body: JSON.stringify({ ...id, name: me.name, color: me.color, want: me.want, invite: opts.invite }),
       signal: opts.signal,
     });
   } catch (e) {

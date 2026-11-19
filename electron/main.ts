@@ -4,6 +4,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { Bonjour, Service } from 'bonjour-service';
 import { CollabServer, TrustStore, TrustedPerson } from './collab-server';
+import { LanPresence, Mdns } from './lan-presence';
 import { GoogleDrive } from './google-drive';
 import googleClient from './google-client.json';
 
@@ -212,6 +213,8 @@ ipcMain.on('app:open-external', (_e, url: string) => {
 // ------------------------------------------------------------ LAN sharing
 
 let server: CollabServer | null = null;
+let hostService: Service | null = null;
+let sharedBy = '';
 
 /** People the host chose to "always allow", kept between runs. */
 const trustFile = () => path.join(app.getPath('userData'), 'lan-allowed.json');
@@ -234,21 +237,23 @@ function getBonjour(): Bonjour {
   return bonjour;
 }
 
-ipcMain.handle('collab:host', async (_e, title: string) => {
+ipcMain.handle('collab:host', async (_e, title: string, hostName?: string) => {
   if (server?.info) return server.info;
   server = new CollabServer();
+  sharedBy = String(hostName ?? '').slice(0, 40);
   server.on('change', (state) => win?.webContents.send('collab:state', state));
   server.on('request', () => {
     // Someone is waiting at the door: get the host's attention.
     if (win && !win.isFocused()) win.flashFrame(true);
   });
-  const info = await server.start({ staticDir: path.join(__dirname, '..', 'dist'), trust: trustStore });
+  const info = await server.start({ staticDir: path.join(__dirname, '..', 'dist'), trust: trustStore, title: String(title).slice(0, 100) });
+  if (presence) presence.ownHost = { port: info.port, addresses: info.addresses };
   try {
-    getBonjour().publish({
+    hostService = getBonjour().publish({
       name: `${String(title).slice(0, 40) || 'Argument map'} (${os.hostname()})`.slice(0, 63),
       type: 'argmap',
       port: info.port,
-      txt: { title: String(title).slice(0, 100), host: os.hostname() },
+      txt: { title: String(title).slice(0, 100), host: os.hostname(), by: sharedBy },
     });
   } catch {
     // Discovery is a convenience; joining by address still works.
@@ -258,10 +263,12 @@ ipcMain.handle('collab:host', async (_e, title: string) => {
 
 ipcMain.handle('collab:stop', async () => {
   try {
-    bonjour?.unpublishAll();
+    hostService?.stop?.();
   } catch {
     /* ignore */
   }
+  hostService = null;
+  if (presence) presence.ownHost = null;
   await server?.stop();
   server = null;
 });
@@ -275,23 +282,63 @@ ipcMain.handle('collab:forget', (_e, deviceId: string) => server?.forget(String(
 
 ipcMain.handle('collab:status', () => (server?.info ? { ...server.info, peers: server.peerCount } : null));
 
-/** Look for hosts on the local network for a couple of seconds. */
+/** Shared maps found on the network right now. */
 ipcMain.handle('collab:discover', async () => {
-  const found = new Map<string, { name: string; title: string; address: string; port: number }>();
-  const browser = getBonjour().find({ type: 'argmap' }, (svc: Service) => {
-    const address = (svc.addresses ?? []).find((a) => /^\d+\.\d+\.\d+\.\d+$/.test(a)) ?? svc.host;
-    const title = String((svc.txt as Record<string, string> | undefined)?.title ?? svc.name);
-    found.set(`${address}:${svc.port}`, { name: svc.name, title, address, port: svc.port });
+  const p = await getPresence();
+  if (!p.nearby().hosts.length) await new Promise((r) => setTimeout(r, 2000));
+  return p.nearby().hosts;
+});
+
+// ------------------------------------------------------ people on the network
+
+let presence: LanPresence | null = null;
+let presenceStarting: Promise<LanPresence> | null = null;
+
+function getPresence(): Promise<LanPresence> {
+  presenceStarting =
+    presenceStarting ??
+    (async () => {
+      const p = new LanPresence(getBonjour() as unknown as Mdns);
+      p.on('change', (n) => win?.webContents.send('lan:nearby', n));
+      p.on('invitation', (inv) => {
+        win?.webContents.send('lan:invitation', inv);
+        if (win && !win.isFocused()) win.flashFrame(true);
+      });
+      await p.start();
+      if (server?.info) p.ownHost = { port: server.info.port, addresses: server.info.addresses };
+      presence = p;
+      return p;
+    })();
+  return presenceStarting;
+}
+
+ipcMain.handle('lan:setMe', async (_e, me: { name: string; color: string; deviceId: string; visible: boolean }) => {
+  (await getPresence()).setMe(me);
+});
+
+ipcMain.handle('lan:nearby', async () => (await getPresence()).nearby());
+
+/** The host invites someone they can see on the network. */
+ipcMain.handle('lan:invite', async (_e, deviceId: string, role: string, from: { name: string; color: string }) => {
+  const p = await getPresence();
+  const person = p.nearby().people.find((x) => x.deviceId === deviceId);
+  if (!person) throw new Error('They are no longer on the network.');
+  if (!server?.info) throw new Error('Start sharing first.');
+  const r = role === 'view' ? 'view' : 'edit';
+  const invite = server.createInvite(person.deviceId, person.name, r);
+  await p.invite(person, {
+    from: String(from?.name ?? '').slice(0, 40),
+    fromColor: String(from?.color ?? ''),
+    title: server.title,
+    port: server.info.port,
+    role: r,
+    invite,
   });
-  await new Promise((r) => setTimeout(r, 2500));
-  browser.stop();
-  // Hide our own server from the list.
-  const own = server?.info;
-  return [...found.values()].filter((h) => !(own && h.port === own.port && own.addresses.includes(h.address)));
 });
 
 app.on('before-quit', () => {
   void server?.stop();
+  void presence?.stop();
   try {
     bonjour?.destroy();
   } catch {

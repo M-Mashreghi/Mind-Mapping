@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Editor } from '../editor';
-import { platform, FoundHost, Role } from '../platform/platform';
+import { platform, Role } from '../platform/platform';
 import { randomColor } from '../collab/session';
 import { Dialog } from './Dialogs';
 
@@ -14,22 +14,8 @@ export function ShareDialog({ editor, onClose }: { editor: Editor; onClose: () =
   const [want, setWant] = useState<Role>('edit');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [found, setFound] = useState<FoundHost[] | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const collab = editor.collab;
-
-  const scan = async () => {
-    setFound(null);
-    try {
-      setFound(await platform.discoverHosts());
-    } catch {
-      setFound([]);
-    }
-  };
-
-  useEffect(() => {
-    if (platform.canHost && !collab) void scan();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const saveUser = (): boolean => {
     if (!name.trim()) {
@@ -72,6 +58,12 @@ export function ShareDialog({ editor, onClose }: { editor: Editor; onClose: () =
             aria-label={c} onClick={() => { setColor(c); if (name.trim()) editor.setUser({ name, color: c }); }} />
         ))}
       </div>
+      {platform.lan ? (
+        <label className="share-visible">
+          <input type="checkbox" checked={editor.lanVisible} onChange={(e) => editor.setLanVisible(e.target.checked)} />
+          Let people on this network see me and invite me
+        </label>
+      ) : null}
     </section>
   );
 
@@ -157,6 +149,7 @@ export function ShareDialog({ editor, onClose }: { editor: Editor; onClose: () =
               </>
             )}
           </section>
+          {host && hs && platform.lan ? <InviteNearby editor={editor} /> : null}
           {host && hs && h && hs.trusted.length ? (
             <section>
               <h3>Always allowed</h3>
@@ -208,20 +201,24 @@ export function ShareDialog({ editor, onClose }: { editor: Editor; onClose: () =
             </div>
           ) : (
             <>
-              {found?.length ? (
-                <ul className="share-found">
-                  {found.map((h) => (
-                    <li key={`${h.address}:${h.port}`}>
-                      <button className={address === `${h.address}:${h.port}` ? 'on' : ''} onClick={() => setAddress(`${h.address}:${h.port}`)}>
-                        <strong dir="auto">{h.title || 'Untitled map'}</strong>
-                        <span>{h.name} · {h.address}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-              {platform.canHost ? (
-                <button className="link-button" onClick={() => void scan()}>{found === null ? 'Looking for shared maps…' : 'Look again'}</button>
+              {platform.lan ? (
+                editor.nearby.hosts.length ? (
+                  <ul className="share-found">
+                    {editor.nearby.hosts.map((h) => (
+                      <li key={`${h.address}:${h.port}`}>
+                        <button className={address === `${h.address}:${h.port}` ? 'on' : ''} onClick={() => setAddress(`${h.address}:${h.port}`)}>
+                          <strong dir="auto">{h.title || 'Untitled map'}</strong>
+                          <span>
+                            {h.hostName ? <>Shared by <b dir="auto">{h.hostName}</b> · </> : null}
+                            {h.people != null ? `${h.people} ${h.people === 1 ? 'person' : 'people'} here` : h.address}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="muted share-looking"><span className="spinner small" aria-hidden="true" /> Looking for shared maps on this network… You can also type an address.</p>
+                )
               ) : null}
               <form
                 className="share-join"
@@ -248,6 +245,49 @@ export function ShareDialog({ editor, onClose }: { editor: Editor; onClose: () =
         {error ? <p className="share-error" role="alert">{error}</p> : null}
       </div>
     </Dialog>
+  );
+}
+
+/** People on the network who have the app open: the host can invite them in. */
+function InviteNearby({ editor }: { editor: Editor }) {
+  const hs = editor.hostState!;
+  const inside = new Set(hs.guests.filter((g) => g.online).map((g) => g.deviceId));
+  const people = editor.nearby.people.filter((p) => !inside.has(p.deviceId));
+  return (
+    <section>
+      <h3>On your network</h3>
+      {people.length ? (
+        <ul className="share-people">
+          {people.map((p) => <InviteRow key={p.deviceId} editor={editor} person={p} invited={hs.invited.find((i) => i.deviceId === p.deviceId)?.role} />)}
+        </ul>
+      ) : (
+        <p className="muted">Nobody else with the app open was found on this network. People appear here when they open Argument Mapper.</p>
+      )}
+    </section>
+  );
+}
+
+function InviteRow({ editor, person: p, invited }: { editor: Editor; person: import('../platform/platform').NearbyPerson; invited?: Role }) {
+  const [role, setRole] = useState<Role>('edit');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <li>
+      <span className="avatar" style={{ background: p.color || '#868e96' }}>{initial(p.name)}</span>
+      <span className="who">
+        <span dir="auto">{p.name}</span>
+        <small className={error ? 'danger-text' : ''}>{error ?? (invited ? `Invited to ${invited === 'edit' ? 'edit' : 'view'} · waiting for them` : 'Has the app open')}</small>
+      </span>
+      <select aria-label={`Invite ${p.name} to`} value={role} onChange={(e) => setRole(e.target.value as Role)}>
+        <option value="edit">To edit</option>
+        <option value="view">To view</option>
+      </select>
+      <button className="invite-button" disabled={busy} onClick={() => {
+        setBusy(true);
+        setError(null);
+        void editor.inviteNearby(p.deviceId, role).catch((e) => setError((e as Error).message)).finally(() => setBusy(false));
+      }}>{invited ? 'Invite again' : 'Invite'}</button>
+    </li>
   );
 }
 
