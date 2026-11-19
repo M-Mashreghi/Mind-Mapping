@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, safeStorage, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, safeStorage, shell } from 'electron';
 import { existsSync, promises as fs } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -100,6 +100,7 @@ function createWindow() {
     },
   });
   win.setMenu(null);
+  if (process.platform === 'darwin') setMacMenu();
 
   const devUrl = process.env.VITE_DEV_SERVER_URL;
   if (devUrl) void win.loadURL(devUrl);
@@ -209,6 +210,32 @@ ipcMain.on('app:close-confirmed', () => {
 ipcMain.on('app:open-external', (_e, url: string) => {
   if (/^https?:\/\//.test(String(url))) void shell.openExternal(String(url));
 });
+
+/**
+ * macOS always has an app menu. Keep it small, and let undo, redo and select all reach
+ * the map (the page decides whether they apply to a text field or to the map).
+ */
+function setMacMenu() {
+  const send = (action: string) => () => win?.webContents.send('menu:edit', action);
+  Menu.setApplicationMenu(
+    Menu.buildFromTemplate([
+      { role: 'appMenu' },
+      {
+        label: 'Edit',
+        submenu: [
+          { label: 'Undo', accelerator: 'Cmd+Z', click: send('undo') },
+          { label: 'Redo', accelerator: 'Shift+Cmd+Z', click: send('redo') },
+          { type: 'separator' },
+          { role: 'cut' },
+          { role: 'copy' },
+          { role: 'paste' },
+          { label: 'Select All', accelerator: 'Cmd+A', click: send('selectAll') },
+        ],
+      },
+      { role: 'windowMenu' },
+    ]),
+  );
+}
 
 // ------------------------------------------------------------ LAN sharing
 

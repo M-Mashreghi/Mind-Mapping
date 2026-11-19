@@ -13,6 +13,10 @@ contextBridge.exposeInMainWorld('argmapDesktop', {
     ipcRenderer.removeAllListeners('app:close-request');
     ipcRenderer.on('app:close-request', () => handler());
   },
+  onMenuEdit: (handler: (action: string) => void) => {
+    ipcRenderer.removeAllListeners('menu:edit');
+    ipcRenderer.on('menu:edit', (_e, action: string) => handler(action));
+  },
   onOpenPath: (handler: (path: string) => void) => {
     ipcRenderer.removeAllListeners('app:open-path');
     ipcRenderer.on('app:open-path', (_e, p: string) => handler(p));

@@ -58,6 +58,19 @@ export function App() {
     };
   }, []);
 
+  // macOS app menu: Undo, Redo and Select All go to the text being edited, or to the map.
+  useEffect(() => {
+    window.argmapDesktop?.onMenuEdit?.((action) => {
+      const el = document.activeElement;
+      if (editor.editing || isTextField(el)) {
+        document.execCommand(action);
+        return;
+      }
+      const c = cmd(`edit.${action}`);
+      if (!c.enabled || c.enabled(editor)) c.run(editor);
+    });
+  }, []);
+
   // Keyboard shortcuts.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

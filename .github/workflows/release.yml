@@ -1,6 +1,7 @@
 name: Build desktop apps
 
-# Builds the Windows installer/portable app and the Linux AppImage/.deb.
+# Builds the Windows installer/portable app, the Linux AppImage/.deb and the macOS .dmg
+# (Apple Silicon and Intel; ad-hoc signed, not notarized).
 # - Run it by hand from the Actions tab ("Run workflow") to get downloadable builds.
 # - Push a tag like v0.2.0, or run it by hand with a version filled in, to also
 #   publish them on a GitHub Release.
@@ -27,6 +28,8 @@ jobs:
             target: --win
           - os: ubuntu-latest
             target: --linux
+          - os: macos-latest
+            target: --mac
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -50,6 +53,7 @@ jobs:
             release/*.exe
             release/*.AppImage
             release/*.deb
+            release/*.dmg
           if-no-files-found: error
 
   release:

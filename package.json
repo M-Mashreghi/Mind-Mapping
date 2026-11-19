@@ -102,6 +102,32 @@
     "portable": {
       "artifactName": "Argument-Mapper-Portable-${version}.${ext}"
     },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "category": "public.app-category.education",
+      "icon": "build/icon.png",
+      "identity": "-",
+      "hardenedRuntime": false,
+      "artifactName": "Argument-Mapper-${version}-mac-${arch}.${ext}",
+      "extendInfo": {
+        "NSLocalNetworkUsageDescription": "Argument Mapper finds people and shared maps on your local network so you can work together.",
+        "NSBonjourServices": [
+          "_argmap._tcp",
+          "_argmap-person._tcp"
+        ]
+      }
+    },
+    "dmg": {
+      "title": "Argument Mapper ${version}"
+    },
     "linux": {
       "target": [
         "AppImage",
