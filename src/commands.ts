@@ -176,6 +176,7 @@ const list: Command[] = [
   { id: 'view.zoomOut', label: 'Zoom out', shortcut: 'Ctrl+-', run: (ed) => ed.zoomAt(1 / 1.2) },
   { id: 'view.fit', label: 'Zoom to fit', shortcut: 'Ctrl+1', run: (ed) => ed.zoomToFit() },
   { id: 'view.recenter', label: 'Recenter', shortcut: 'Ctrl+0', run: (ed) => ed.recenter() },
+  { id: 'view.present', label: 'Present', shortcut: 'F5', run: (ed) => ed.startPresentation() },
   { id: 'view.fullscreen', label: 'Full screen', shortcut: 'F11', run: () => platform.toggleFullScreen() },
 
   // Help
@@ -243,7 +244,7 @@ export const menus: { label: string; items: MenuItem[] }[] = [
       { label: 'Labels', items: ['view.labels.none', 'view.labels.level', 'view.labels.hierarchical', 'view.labels.sequential'] },
       { label: 'Lines', items: ['view.lines.curved', 'view.lines.straight', 'view.lines.elbow'] },
       { label: 'Appearance', items: ['view.appearance.system', 'view.appearance.light', 'view.appearance.dark'] },
-      '-', 'view.zoomIn', 'view.zoomOut', 'view.fit', 'view.recenter', '-', 'view.fullscreen', '-', 'view.theme', 'view.resetStyling',
+      '-', 'view.zoomIn', 'view.zoomOut', 'view.fit', 'view.recenter', '-', 'view.present', 'view.fullscreen', '-', 'view.theme', 'view.resetStyling',
     ],
   },
   { label: 'Insert', items: ['insert.reason', 'insert.objection', '-', 'insert.child', 'insert.sibling', 'insert.parent', '-', 'insert.root', 'insert.sticky', 'insert.connection'] },
@@ -316,6 +317,7 @@ export function commandForKey(e: KeyboardEvent): string | null {
   if (key === 'Escape') return 'edit.clearSelection';
   if (key === ' ' || key === 'F2') return 'edit.text';
   if (key === 'F11') return 'view.fullscreen';
+  if (key === 'F5') return 'view.present';
   if (code === 'KeyF') return shift ? 'view.unfoldLevel' : 'view.fold';
   if (code === 'KeyD' && !shift) return 'edit.detach';
   if (code === 'KeyN') return shift ? 'view.notes' : 'edit.note';

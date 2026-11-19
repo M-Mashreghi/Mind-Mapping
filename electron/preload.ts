@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('argmapDesktop', {
   setDirty: (dirty: boolean) => ipcRenderer.send('app:dirty', dirty),
   setTitle: (title: string) => ipcRenderer.send('app:title', title),
   toggleFullScreen: () => ipcRenderer.send('app:fullscreen'),
+  setFullScreen: (on: boolean) => ipcRenderer.send('app:set-fullscreen', !!on),
   onCloseRequest: (handler: () => void) => {
     ipcRenderer.removeAllListeners('app:close-request');
     ipcRenderer.on('app:close-request', () => handler());

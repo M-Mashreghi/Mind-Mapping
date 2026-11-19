@@ -57,6 +57,7 @@ export function Canvas({ editor, onContextMenu }: Props) {
     const update = () => {
       const r = el.getBoundingClientRect();
       editor.viewport = { w: r.width, h: r.height };
+      if (editor.presentation) editor.presentFocus();
     };
     update();
     const ro = new ResizeObserver(update);
@@ -95,6 +96,11 @@ export function Canvas({ editor, onContextMenu }: Props) {
     }
     const target = (e.target as HTMLElement).closest<HTMLElement>('[data-node-id]');
     const id = target?.dataset.nodeId;
+    if (editor.presentation && id) {
+      // Presenting: a click on a claim goes to it; nothing is moved or edited.
+      if (doc.get(id)?.kind === 'claim') editor.presentAt(id);
+      return;
+    }
     if (id && editing?.id === id) return; // clicks inside the text editor
     if ((e.target as HTMLElement).closest('.node-badge')) return;
     ref.current!.focus({ preventScroll: true });
@@ -173,6 +179,7 @@ export function Canvas({ editor, onContextMenu }: Props) {
   };
 
   const onDoubleClick = (e: React.MouseEvent) => {
+    if (editor.presentation) return;
     const target = (e.target as HTMLElement).closest<HTMLElement>('[data-node-id]');
     const id = target?.dataset.nodeId;
     if (id) {
@@ -188,6 +195,7 @@ export function Canvas({ editor, onContextMenu }: Props) {
 
   const onContext = (e: React.MouseEvent) => {
     e.preventDefault();
+    if (editor.presentation) return;
     const target = (e.target as HTMLElement).closest<HTMLElement>('[data-node-id]');
     const id = target?.dataset.nodeId;
     if (id) {
@@ -223,7 +231,7 @@ export function Canvas({ editor, onContextMenu }: Props) {
   return (
     <div
       ref={ref}
-      className={`canvas${drag?.active ? ' dragging' : ''}${editor.tool === 'pan' ? ' panning' : ''} map-${theme.mapStyle}`}
+      className={`canvas${editor.presentation ? ' presenting' : ''}${drag?.active ? ' dragging' : ''}${editor.tool === 'pan' ? ' panning' : ''} map-${theme.mapStyle}`}
       style={style}
       tabIndex={0}
       role="application"
@@ -236,6 +244,7 @@ export function Canvas({ editor, onContextMenu }: Props) {
       onContextMenu={onContext}
       onPointerLeave={() => editor.setCursor(null)}
     >
+      {editor.presentation ? <style>{presentCss(editor)}</style> : null}
       <div className="world" style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})` }}>
         <svg className="edges" width="1" height="1" overflow="visible" aria-hidden="true">
           <defs>
@@ -332,6 +341,18 @@ export function Canvas({ editor, onContextMenu }: Props) {
 
 type Off = { dx: number; dy: number };
 
+/** Presenting: claims not reached yet are faint, the current one is ringed. */
+function presentCss(editor: Editor): string {
+  const p = editor.presentation!;
+  const ids = [...editor.presentFuture()].filter((id) => /^[\w-]+$/.test(id));
+  const cur = p.steps[p.index] ?? '';
+  const faint = ids.flatMap((id) => [`.canvas.presenting [data-node-id="${id}"]`, `.canvas.presenting [data-edge="${id}"]`]).join(',');
+  return [
+    faint ? `${faint}{opacity:.1}` : '',
+    /^[\w-]+$/.test(cur) ? `.canvas.presenting .claim[data-node-id="${cur}"]{box-shadow:0 0 0 3px var(--brand),0 8px 28px rgba(0,0,0,.18)}` : '',
+  ].join('');
+}
+
 /** Point where the line from a box's centre towards (tx, ty) leaves the box. */
 function exitPoint(b: Box, o: Off, tx: number, ty: number) {
   const cx = b.x + o.dx + b.w / 2;
@@ -373,7 +394,7 @@ function EdgePath({ edge, from, to, lineStyle, hit }: { edge: Edge; from: Off; t
   const d = edgePath(x1, y1, x2, y2, lineStyle);
   // A wide, invisible copy of the line: click it to pick the group, double-click to write on it.
   if (hit) return <path className="edge-hit" data-node-id={edge.from} d={d} />;
-  return <path className={`edge edge-${edge.kind}`} d={d} />;
+  return <path className={`edge edge-${edge.kind}`} data-edge={edge.from} d={d} />;
 }
 
 function EdgeLabel({ id, kind, x, y, text, own, editing, selected, editor }: {

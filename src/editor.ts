@@ -57,6 +57,8 @@ export class Editor {
   doc: MapDoc;
   selection: string[] = [];
   editing: { id: string; initial?: string } | null = null;
+  /** Presentation mode: the claims in speaking order, and the one on screen. */
+  presentation: { steps: string[]; index: number; fullScreen: boolean } | null = null;
   /** The reason or objection whose line label is being written. */
   labelEditing: string | null = null;
   view: View = { zoom: 1, x: 0, y: 0 };
@@ -898,6 +900,120 @@ export class Editor {
       zoom,
       x: this.viewport.w / 2 - (b.x + b.w / 2) * zoom,
       y: Math.max(pad, this.viewport.h / 2 - (b.y + b.h / 2) * zoom),
+    });
+  }
+
+  // ------------------------------------------------------------ presenting
+
+  /** Claims in the order you would talk through them: each claim, then its reasons and objections, depth first. */
+  private presentationSteps(): string[] {
+    const kids = new Map<string | null, MapNode[]>();
+    for (const n of this.doc.all()) kids.set(n.parent, [...(kids.get(n.parent) ?? []), n]);
+    for (const l of kids.values()) l.sort((a, b) => a.order - b.order);
+    const out: string[] = [];
+    const visit = (c: MapNode) => {
+      out.push(c.id);
+      if (c.collapsed) return;
+      for (const g of kids.get(c.id) ?? []) if (isGroup(g)) for (const p of kids.get(g.id) ?? []) visit(p);
+    };
+    const boxes = this.layout.boxes;
+    const roots = (kids.get(null) ?? []).filter((n) => isClaim(n) && boxes.has(n.id));
+    roots.sort((a, b) => boxes.get(a.id)!.y - boxes.get(b.id)!.y || boxes.get(a.id)!.x - boxes.get(b.id)!.x);
+    roots.forEach(visit);
+    return out;
+  }
+
+  /** Full screen, one claim at a time; starts at the selected claim if there is one. */
+  startPresentation(): void {
+    this.commitEditing();
+    this.finishLineLabel(null);
+    const steps = this.presentationSteps();
+    if (!steps.length) return this.flash('Add a claim to present.');
+    const at = this.primary ? steps.indexOf(this.primary) : -1;
+    this.selection = [];
+    this.find = null;
+    this.presentation = { steps, index: Math.max(0, at), fullScreen: true };
+    platform.setFullScreen(true);
+    this.emit();
+    // Let the window go full screen before framing the first claim.
+    setTimeout(() => this.presentFocus(), 120);
+  }
+
+  stopPresentation(leaveFullScreen = true): void {
+    const p = this.presentation;
+    if (!p) return;
+    this.presentation = null;
+    if (p.fullScreen && leaveFullScreen) platform.setFullScreen(false);
+    this.emit();
+    setTimeout(() => this.zoomToFit(), 120);
+  }
+
+  presentGo(index: number): void {
+    const p = this.presentation;
+    if (!p) return;
+    // The map may have changed meanwhile (a collaborator, an unfold): count again.
+    p.steps = this.presentationSteps();
+    p.index = Math.min(p.steps.length - 1, Math.max(0, index));
+    this.presentFocus();
+  }
+
+  /** Jump to a claim (clicked on screen). */
+  presentAt(id: string): void {
+    const p = this.presentation;
+    if (!p) return;
+    p.steps = this.presentationSteps();
+    const i = p.steps.indexOf(id);
+    if (i >= 0) this.presentGo(i);
+  }
+
+  presentNext(): void {
+    if (this.presentation) this.presentGo(this.presentation.index + 1);
+  }
+
+  presentPrev(): void {
+    if (this.presentation) this.presentGo(this.presentation.index - 1);
+  }
+
+  /** Ids not reached yet in the presentation; they stay faint until their turn. */
+  presentFuture(): Set<string> {
+    const p = this.presentation;
+    const out = new Set<string>();
+    if (!p) return out;
+    const shown = new Set(p.steps.slice(0, p.index + 1));
+    for (const n of this.doc.all()) {
+      if (isClaim(n) && !shown.has(n.id)) out.add(n.id);
+    }
+    for (const n of this.doc.all()) {
+      if (!isGroup(n)) continue;
+      const premises = this.doc.all().filter((c) => c.parent === n.id);
+      if (!premises.some((c) => shown.has(c.id))) out.add(n.id);
+    }
+    return out;
+  }
+
+  /** Frame the current claim with the claim it answers and its co-premises. */
+  presentFocus(): void {
+    const p = this.presentation;
+    if (!p) return;
+    const id = p.steps[p.index];
+    const boxes = this.layout.boxes;
+    const n = this.doc.get(id);
+    const region = [boxes.get(id)];
+    const group = n?.parent ? this.doc.get(n.parent) : undefined;
+    if (group) {
+      region.push(boxes.get(group.id));
+      if (group.parent) region.push(boxes.get(group.parent));
+    }
+    const bs = region.filter((b): b is NonNullable<typeof b> => !!b);
+    if (!bs.length) return this.emit();
+    const x1 = Math.min(...bs.map((b) => b.x)), y1 = Math.min(...bs.map((b) => b.y));
+    const x2 = Math.max(...bs.map((b) => b.x + b.w)), y2 = Math.max(...bs.map((b) => b.y + b.h));
+    const pad = 80, bar = 70;
+    const zoom = Math.max(0.2, Math.min((this.viewport.w - pad * 2) / (x2 - x1), (this.viewport.h - pad * 2 - bar) / (y2 - y1), 1.5));
+    this.setView({
+      zoom,
+      x: this.viewport.w / 2 - ((x1 + x2) / 2) * zoom,
+      y: (this.viewport.h - bar) / 2 - ((y1 + y2) / 2) * zoom,
     });
   }
 

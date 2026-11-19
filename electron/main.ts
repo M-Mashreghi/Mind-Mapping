@@ -201,6 +201,7 @@ ipcMain.on('app:dirty', (_e, value: boolean) => {
 ipcMain.on('app:title', (_e, title: string) => win?.setTitle(String(title)));
 
 ipcMain.on('app:fullscreen', () => win?.setFullScreen(!win.isFullScreen()));
+ipcMain.on('app:set-fullscreen', (_e, on: unknown) => win?.setFullScreen(on === true));
 
 ipcMain.on('app:close-confirmed', () => {
   forceClose = true;

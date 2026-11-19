@@ -15,6 +15,25 @@ import { ShareDialog, RequestRow } from './ui/ShareDialog';
 import { DriveDialog } from './ui/DriveDialog';
 import { isClaim } from './model/types';
 
+/** The small bar at the bottom of a presentation: back, where you are, next, done. */
+function PresentBar({ editor }: { editor: Editor }) {
+  const p = editor.presentation!;
+  const total = p.steps.length;
+  return (
+    <div className="present-bar" role="toolbar" aria-label="Presentation">
+      <button onClick={() => editor.presentPrev()} disabled={p.index <= 0} title="Back (←)" aria-label="Back">
+        <svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3L5 8l5 5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+      </button>
+      <span className="present-count" aria-live="polite">{Math.min(p.index + 1, total)} / {total}</span>
+      <button onClick={() => editor.presentNext()} disabled={p.index >= total - 1} title="Next (→ or Space)" aria-label="Next">
+        <svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3l5 5-5 5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+      </button>
+      <span className="present-sep" />
+      <button className="present-exit" onClick={() => editor.stopPresentation()} title="End presentation (Esc)">End</button>
+    </div>
+  );
+}
+
 const editor = new Editor(domMeasure);
 // Expose for debugging and end-to-end tests.
 (window as unknown as { argmapEditor: Editor }).argmapEditor = editor;
@@ -74,6 +93,18 @@ export function App() {
   // Keyboard shortcuts.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (editor.presentation) {
+        const next = ['ArrowRight', 'ArrowDown', 'PageDown', ' ', 'Enter', 'n'];
+        const prev = ['ArrowLeft', 'ArrowUp', 'PageUp', 'Backspace', 'p'];
+        if (next.includes(e.key)) editor.presentNext();
+        else if (prev.includes(e.key)) editor.presentPrev();
+        else if (e.key === 'Home') editor.presentGo(0);
+        else if (e.key === 'End') editor.presentGo(Number.MAX_SAFE_INTEGER);
+        else if (e.key === 'Escape' || e.key === 'F5') editor.stopPresentation();
+        else return;
+        e.preventDefault();
+        return;
+      }
       if (e.defaultPrevented || editor.editing || isTextField(e.target)) return;
       if (dialog) return;
       const arrows: Record<string, 'up' | 'down' | 'left' | 'right'> = {
@@ -148,7 +179,18 @@ export function App() {
     return () => window.removeEventListener('beforeunload', onBeforeUnload);
   }, []);
 
+  // Web: the browser leaves full screen on Esc by itself; end the presentation with it.
+  useEffect(() => {
+    if (window.argmapDesktop) return;
+    const onChange = () => {
+      if (!document.fullscreenElement && editor.presentation) editor.stopPresentation(false);
+    };
+    document.addEventListener('fullscreenchange', onChange);
+    return () => document.removeEventListener('fullscreenchange', onChange);
+  }, []);
+
   const zoomPct = Math.round(editor.view.zoom * 100);
+  const presenting = editor.presentation;
 
   useEffect(() => {
     if (editor.appearance === 'system') delete document.documentElement.dataset.theme;
@@ -156,11 +198,15 @@ export function App() {
   }, [editor.appearance]);
 
   return (
-    <div className="app">
-      <MenuBar editor={editor} />
+    <div className={`app${presenting ? ' presenting' : ''}`}>
+      {presenting ? null : <MenuBar editor={editor} />}
       <div className="workspace">
       <main className="stage">
         <Canvas editor={editor} onContextMenu={(kind, x, y) => setMenu({ kind, x, y })} />
+        {presenting ? (
+          <PresentBar editor={editor} />
+        ) : (
+          <>
         <AddHandles editor={editor} />
         <NodeToolbar editor={editor} onMore={(x, y) => setMenu({ kind: 'node', x, y })} />
         {editor.find ? <FindBar editor={editor} /> : null}
@@ -189,12 +235,14 @@ export function App() {
             <button onClick={() => setDialog('shortcuts')} title="Keyboard shortcuts (Ctrl+/)" aria-label="Help">?</button>
           </div>
         </div>
+          </>
+        )}
 
         {editor.message ? (
           <div className={`toast toast-${editor.message.kind}`} role="status">{editor.message.text}</div>
         ) : null}
       </main>
-      {editor.notesOpen ? <NotesPanel editor={editor} /> : null}
+      {editor.notesOpen && !presenting ? <NotesPanel editor={editor} /> : null}
       </div>
 
       {menu ? (
