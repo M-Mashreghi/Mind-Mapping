@@ -10,6 +10,8 @@ export function NotesPanel({ editor }: { editor: Editor }) {
   const id = editor.primary;
   const node = editor.doc.get(id);
   const [draft, setDraft] = useState<string | null>(null);
+  const [comment, setComment] = useState('');
+  const readOnly = editor.readOnly;
 
   useEffect(() => {
     const focus = () => area.current?.focus();
@@ -41,7 +43,7 @@ export function NotesPanel({ editor }: { editor: Editor }) {
   return (
     <aside className="notes-panel" aria-label="Notes" onKeyDown={(e) => e.stopPropagation()}>
       <div className="panel-head">
-        <h2>Notes</h2>
+        <h2>Notes{editor.showComments ? ' and comments' : ''}</h2>
         <button className="icon-button" onClick={() => editor.toggleNotes(false)} aria-label="Close notes">×</button>
       </div>
       <section className="note-editor">
@@ -50,8 +52,9 @@ export function NotesPanel({ editor }: { editor: Editor }) {
             <div className="note-for" dir="auto">{node.text || (node.kind === 'claim' ? 'Untitled claim' : node.kind)}</div>
             <textarea
               ref={area}
+              readOnly={readOnly}
               dir="auto"
-              placeholder="Write a note for this box…"
+              placeholder={readOnly ? 'No note.' : 'Write a note for this box…'}
               value={draft ?? node.note ?? ''}
               onChange={(e) => setDraft(e.target.value)}
               onBlur={commit}
@@ -67,6 +70,45 @@ export function NotesPanel({ editor }: { editor: Editor }) {
           <p className="muted">Select a box to add a note to it.</p>
         )}
       </section>
+      {node && editor.showComments ? (
+        <section className="comments" aria-label="Comments">
+          <h3>Comments</h3>
+          <ul>
+            {editor.doc.commentsFor(node.id).map((c) => (
+              <li key={c.id}>
+                <div className="comment-head">
+                  <span className="avatar small" style={{ background: c.color || 'var(--ink-3)' }}>{(c.author.trim()[0] ?? '?').toUpperCase()}</span>
+                  <strong>{c.author}</strong>
+                  <time dateTime={c.at}>{new Date(c.at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</time>
+                  {!readOnly && c.author === (editor.user?.name ?? 'Me') ? (
+                    <button className="link-button" onClick={() => editor.doc.removeComment(c.id)} aria-label="Delete comment">Delete</button>
+                  ) : null}
+                </div>
+                <p dir="auto">{c.text}</p>
+              </li>
+            ))}
+          </ul>
+          {!readOnly ? (
+            <form
+              className="comment-form"
+              onSubmit={(e) => {
+                e.preventDefault();
+                editor.addComment(node.id, comment);
+                setComment('');
+              }}
+            >
+              <textarea dir="auto" rows={2} value={comment} placeholder="Add a comment…" onChange={(e) => setComment(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                    e.preventDefault();
+                    (e.currentTarget.form as HTMLFormElement).requestSubmit();
+                  }
+                }} />
+              <button type="submit" disabled={!comment.trim()}>Comment</button>
+            </form>
+          ) : null}
+        </section>
+      ) : null}
       <div className="notes-tools">
         <input type="search" placeholder="Search notes" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search notes" />
         <label className="check"><input type="checkbox" checked={truncate} onChange={(e) => setTruncate(e.target.checked)} /> Truncate</label>

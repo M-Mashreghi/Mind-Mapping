@@ -1,10 +1,10 @@
 import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { Editor } from '../editor';
-import { FontSize, isTextNode } from '../model/types';
+import { FontSize, REACTIONS, isTextNode } from '../model/types';
 import { FONT_SIZES, PALETTE } from '../theme';
 import { useDismiss } from './Menu';
 
-type Pop = 'fill' | 'border' | 'color' | 'size' | null;
+type Pop = 'fill' | 'border' | 'color' | 'size' | 'react' | null;
 
 /** Floating toolbar above the selected box: colours, text style, notes, link. */
 export function NodeToolbar({ editor, onMore }: { editor: Editor; onMore: (x: number, y: number) => void }) {
@@ -20,7 +20,7 @@ export function NodeToolbar({ editor, onMore }: { editor: Editor; onMore: (x: nu
   const id = editor.primary;
   const box = id ? editor.layout.boxes.get(id) : undefined;
   const node = editor.doc.get(id);
-  if (!box || !node || editor.editing) return null;
+  if (!box || !node || editor.editing || editor.readOnly) return null;
 
   const { zoom, x, y } = editor.view;
   const half = width / 2 + 8;
@@ -110,6 +110,19 @@ export function NodeToolbar({ editor, onMore }: { editor: Editor; onMore: (x: nu
           <button className={node.link ? 'on' : ''} title="Link (Ctrl+K)" onClick={() => editor.editLink()}>Link</button>
           <button className={node.note ? 'on' : ''} title="Notes (N)" onClick={() => editor.toggleNotes(true)}>Note</button>
         </>
+      ) : null}
+      {text ? (
+        <div className="tb-item">
+          <button title="React" aria-label="React" onClick={() => setPop(pop === 'react' ? null : 'react')}>☺</button>
+          {pop === 'react' ? (
+            <div className="popover reactions" role="listbox" aria-label="Reactions">
+              {REACTIONS.map((r) => (
+                <button key={r} onClick={() => { editor.toggleReaction(node.id, r); close(); }}>{r}</button>
+              ))}
+              <button className="reaction-comment" onClick={() => { editor.toggleNotes(true); close(); }}>Comment…</button>
+            </div>
+          ) : null}
+        </div>
       ) : null}
       <span className="tb-sep" />
       <button title="More actions" aria-label="More actions" onClick={(e) => {

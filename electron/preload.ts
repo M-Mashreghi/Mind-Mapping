@@ -17,6 +17,10 @@ contextBridge.exposeInMainWorld('argmapDesktop', {
     ipcRenderer.removeAllListeners('app:open-path');
     ipcRenderer.on('app:open-path', (_e, p: string) => handler(p));
   },
+  hostStart: (title: string) => ipcRenderer.invoke('collab:host', title),
+  hostStop: () => ipcRenderer.invoke('collab:stop'),
+  hostStatus: () => ipcRenderer.invoke('collab:status'),
+  discoverHosts: () => ipcRenderer.invoke('collab:discover'),
   confirmClose: () => ipcRenderer.send('app:close-confirmed'),
   openExternal: (url: string) => ipcRenderer.send('app:open-external', url),
   exportFile: (name: string, data: Uint8Array | string, filter: { name: string; extensions: string[] }) =>

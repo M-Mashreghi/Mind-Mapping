@@ -48,6 +48,12 @@ export function parseMapFile(text: string): MapFile {
       ? f.connections.filter((c) => c && typeof c.id === 'string' && ids.has(c.from) && ids.has(c.to))
       : [],
     theme: f.theme && typeof f.theme === 'object' ? f.theme : undefined,
+    comments: Array.isArray(f.comments)
+      ? f.comments.filter((c) => c && typeof c.id === 'string' && typeof c.text === 'string' && ids.has(c.node))
+      : [],
+    reactions: Array.isArray(f.reactions)
+      ? f.reactions.filter((r) => r && typeof r.emoji === 'string' && typeof r.author === 'string' && ids.has(r.node))
+      : [],
     history: Array.isArray(f.history)
       ? f.history.filter((h) => h && typeof h.savedAt === 'string' && Array.isArray(h.nodes)).slice(0, 50)
       : undefined,

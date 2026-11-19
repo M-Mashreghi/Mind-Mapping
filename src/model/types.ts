@@ -58,6 +58,24 @@ export interface Connection {
   label?: string;
 }
 
+/** A comment left on a node, usually by a collaborator. */
+export interface Comment {
+  id: string;
+  node: string;
+  author: string;
+  color?: string;
+  text: string;
+  at: string;
+}
+
+export interface Reaction {
+  node: string;
+  emoji: string;
+  author: string;
+}
+
+export const REACTIONS = ['👍', '👏', '🥳', '😂', '😎', '❤️', '🤔', '❓'];
+
 export type Numbering = 'none' | 'level' | 'hierarchical' | 'sequential';
 export type LineStyle = 'curved' | 'straight' | 'elbow';
 
@@ -117,6 +135,8 @@ export interface MapFile {
   nodes: MapNode[];
   connections?: Connection[];
   theme?: Partial<Theme>;
+  comments?: Comment[];
+  reactions?: Reaction[];
   /** Earlier saved versions, newest first. */
   history?: Snapshot[];
   settings?: Record<string, unknown>;

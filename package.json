@@ -29,16 +29,22 @@
     "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "@types/ws": "^8.18.2",
     "@vitejs/plugin-react": "^6.3.0",
+    "bonjour-service": "^1.4.4",
     "electron": "^45.4.1",
     "electron-builder": "^26.18.0",
     "esbuild": "^0.28.2",
     "jsdom": "^31.0.1",
+    "lib0": "^0.2.120",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "typescript": "^5.9.3",
     "vite": "^8.3.8",
     "vitest": "^5.1.1",
+    "ws": "^8.23.0",
+    "y-protocols": "^1.0.7",
+    "y-websocket": "^3.1.0",
     "yjs": "^13.6.33"
   },
   "homepage": "https://github.com/M-Mashreghi/Mind-Mapping",
@@ -49,7 +55,7 @@
   "build": {
     "appId": "org.argumentmapper.app",
     "productName": "Argument Mapper",
-    "copyright": "Copyright \u00a9 2026 Argument Mapper contributors",
+    "copyright": "Copyright © 2026 Argument Mapper contributors",
     "directories": {
       "output": "release",
       "buildResources": "build"

@@ -21,10 +21,28 @@ export interface DesktopBridge {
   toggleFullScreen(): void;
   onCloseRequest(handler: () => void): void;
   onOpenPath(handler: (path: string) => void): void;
+  hostStart(title: string): Promise<HostInfo>;
+  hostStop(): Promise<void>;
+  hostStatus(): Promise<(HostInfo & { peers: number }) | null>;
+  discoverHosts(): Promise<FoundHost[]>;
   confirmClose(): void;
   openExternal(url: string): void;
   exportFile(suggestedName: string, data: Uint8Array | string, filter: FileFilter): Promise<SavedFile | null>;
   exportPdf(svg: string, width: number, height: number, suggestedName: string): Promise<SavedFile | null>;
+}
+
+export interface HostInfo {
+  port: number;
+  editCode: string;
+  viewCode: string;
+  addresses: string[];
+}
+
+export interface FoundHost {
+  name: string;
+  title: string;
+  address: string;
+  port: number;
 }
 
 export interface FileFilter {
@@ -53,6 +71,11 @@ export interface Platform {
   /** Save an exported file (image, text…) where the user chooses. */
   exportFile(suggestedName: string, data: Uint8Array | string, filter: FileFilter): Promise<SavedFile | null>;
   exportPdf(svg: string, width: number, height: number, suggestedName: string): Promise<SavedFile | null>;
+  /** LAN sharing. Only the desktop app can host. */
+  canHost: boolean;
+  hostStart(title: string): Promise<HostInfo>;
+  hostStop(): Promise<void>;
+  discoverHosts(): Promise<FoundHost[]>;
 }
 
 function desktopPlatform(bridge: DesktopBridge): Platform {
@@ -69,6 +92,10 @@ function desktopPlatform(bridge: DesktopBridge): Platform {
     openExternal: (url) => bridge.openExternal(url),
     exportFile: (name, data, filter) => bridge.exportFile(name, data, filter),
     exportPdf: (svg, w, h, name) => bridge.exportPdf(svg, w, h, name),
+    canHost: true,
+    hostStart: (title) => bridge.hostStart(title),
+    hostStop: () => bridge.hostStop(),
+    discoverHosts: () => bridge.discoverHosts(),
   };
 }
 
@@ -124,6 +151,12 @@ function webPlatform(): Platform {
       setTimeout(() => win.print(), 500);
       return { name };
     },
+    canHost: false,
+    hostStart: async () => {
+      throw new Error('Hosting needs the desktop app. You can still join a map someone else is sharing.');
+    },
+    hostStop: async () => {},
+    discoverHosts: async () => [],
   };
 }
 

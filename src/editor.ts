@@ -3,6 +3,30 @@ import { MapFile, MapNode, NodeStyle, Snapshot, Theme, FontSize, isClaim, isGrou
 import { importMindMup } from './model/mindmup';
 import { buildSvg, readColors, svgToPng } from './export/svg';
 import { toMarkdown, toPlainText } from './export/outline';
+import { CollabSession, Peer, PeerUser, checkCode, loadUser, saveUser } from './collab/session';
+import type { HostInfo } from './platform/platform';
+
+export interface CollabState {
+  role: 'host' | 'guest';
+  readOnly: boolean;
+  session: CollabSession;
+  /** Where people join from (host) or the host we joined (guest). */
+  httpBase: string;
+  host?: HostInfo;
+}
+
+/** Turn "192.168.1.5:47821", "http://…" or a share link into base URLs. */
+export function parseAddress(input: string): { httpBase: string; wsBase: string; code?: string } {
+  let raw = input.trim();
+  if (!/^[a-z]+:\/\//i.test(raw)) raw = `http://${raw}`;
+  const u = new URL(raw);
+  // A bare address like "192.168.1.5" means the app's default port.
+  if (!u.port && !/:\d+/.test(input)) u.port = '47821';
+  const code = u.searchParams.get('join') ?? undefined;
+  const httpBase = `${u.protocol}//${u.host}`;
+  const wsBase = `${u.protocol === 'https:' ? 'wss' : 'ws'}://${u.host}`;
+  return { httpBase, wsBase, code };
+}
 import { parseMapFile, serialize, FILE_EXTENSION } from './model/file';
 import { layoutMap, LayoutResult, Size, computeLabels } from './layout/layout';
 import { platform } from './platform/platform';
@@ -44,6 +68,11 @@ export class Editor {
   recent: string[] = [];
   /** Saved versions of this map, newest first. */
   history: Snapshot[] = [];
+  collab: CollabState | null = null;
+  user: PeerUser | null = loadUser();
+  showComments = true;
+  /** Set when the page was opened from a share link (browser guests). */
+  pendingJoin: { address: string; code: string } | null = null;
 
   private measure: (node: MapNode, theme: Theme) => Size;
   private styleClip: NodeStyle | undefined;
@@ -55,6 +84,16 @@ export class Editor {
   private clip: ClipNode[] = [];
   private autosaveTimer: ReturnType<typeof setTimeout> | null = null;
   private messageTimer: ReturnType<typeof setTimeout> | null = null;
+  private onDocUpdate = (_u: Uint8Array, origin: unknown) => {
+    if (origin !== 'load' && this.collab?.role !== 'guest') this.markDirty();
+    this.layoutVersion = -1;
+    // Drop selection entries that no longer exist (e.g. after undo or a remote delete).
+    this.selection = this.selection.filter((id) => this.doc.has(id));
+    if (this.selectedConnection && !this.doc.connections.has(this.selectedConnection)) this.selectedConnection = null;
+    if (this.editing && !this.doc.has(this.editing.id)) this.editing = null;
+    if (this.find) this.runFind(this.find.query, false);
+    this.emit();
+  };
 
   constructor(measure: (node: MapNode, theme: Theme) => Size) {
     this.measure = measure;
@@ -72,6 +111,11 @@ export class Editor {
       this.recent = r;
       this.emit();
     });
+    // Opened from a share link: http://host:port/?join=CODE
+    if (platform.kind === 'web' && typeof location !== 'undefined') {
+      const code = new URLSearchParams(location.search).get('join');
+      if (code) this.pendingJoin = { address: location.host, code };
+    }
   }
 
   // ------------------------------------------------------------ store plumbing
@@ -85,20 +129,24 @@ export class Editor {
 
   emit(): void {
     this.version++;
+    this.collab?.session.setPresence({ selection: this.selection, editing: this.editing?.id ?? null });
     for (const fn of this.listeners) fn();
   }
 
   private attach(): void {
-    this.doc.ydoc.on('update', (_u: Uint8Array, origin: unknown) => {
-      if (origin !== 'load') this.markDirty();
-      this.layoutVersion = -1;
-      // Drop selection entries that no longer exist (e.g. after undo).
-      this.selection = this.selection.filter((id) => this.doc.has(id));
-      if (this.selectedConnection && !this.doc.connections.has(this.selectedConnection)) this.selectedConnection = null;
-      if (this.find) this.runFind(this.find.query, false);
-      if (this.editing && !this.doc.has(this.editing.id)) this.editing = null;
-      this.emit();
-    });
+    this.doc.ydoc.on('update', this.onDocUpdate);
+  }
+
+  /** Swap in another document (joining a shared map). */
+  private replaceDoc(doc: MapDoc): void {
+    this.doc.ydoc.off('update', this.onDocUpdate);
+    this.doc = doc;
+    this.attach();
+    this.selection = [];
+    this.editing = null;
+    this.selectedConnection = null;
+    this.history = [];
+    this.layoutVersion = -1;
   }
 
   get layout(): LayoutResult {
@@ -189,6 +237,12 @@ export class Editor {
   }
 
   loadFile(file: MapFile, state?: Partial<FileState>): void {
+    // Opening another map ends any sharing, so it never overwrites the shared one.
+    if (this.collab) {
+      const guest = this.collab.role === 'guest';
+      void this.leave(false);
+      if (guest) this.replaceDoc(new MapDoc());
+    }
     this.doc.load(file);
     this.history = file.history ?? [];
     this.selection = [];
@@ -411,6 +465,7 @@ export class Editor {
   // --------------------------------------------------------------- editing
 
   startEditing(id?: string, initial?: string): void {
+    if (this.readOnly) return this.flashReadOnly();
     const target = id ?? this.primary;
     if (!target || !isTextNode(this.doc.get(target))) return;
     this.selection = [target];
@@ -454,6 +509,7 @@ export class Editor {
   }
 
   addReason(): void {
+    if (this.readOnly) return this.flashReadOnly();
     this.withPrimary((id) => {
       const n = this.doc.get(id);
       const claim = isGroup(n) ? n!.parent! : id;
@@ -462,6 +518,7 @@ export class Editor {
   }
 
   addObjection(): void {
+    if (this.readOnly) return this.flashReadOnly();
     this.withPrimary((id) => {
       const n = this.doc.get(id);
       const claim = isGroup(n) ? n!.parent! : id;
@@ -488,6 +545,7 @@ export class Editor {
   }
 
   addRoot(at?: { x: number; y: number }): void {
+    if (this.readOnly) return this.flashReadOnly();
     this.commitEditing();
     const p = at ?? this.screenToMap(this.viewport.w / 2, this.viewport.h / 3);
     const id = this.doc.addRoot('', p.x, p.y);
@@ -541,11 +599,13 @@ export class Editor {
   }
 
   undo(): void {
+    if (this.readOnly) return this.flashReadOnly();
     this.commitEditing();
     this.doc.undo.undo();
   }
 
   redo(): void {
+    if (this.readOnly) return this.flashReadOnly();
     this.commitEditing();
     this.doc.undo.redo();
   }
@@ -608,12 +668,14 @@ export class Editor {
   }
 
   cut(): string | null {
+    if (this.readOnly) return this.copyText();
     const text = this.copyText();
     if (text) this.deleteSelection();
     return text;
   }
 
   pasteText(text: string | null, asRoot = false): void {
+    if (this.readOnly) return this.flashReadOnly();
     let clip: ClipNode[] | null = null;
     if (text && text.startsWith(CLIP_PREFIX)) {
       try {
@@ -651,6 +713,7 @@ export class Editor {
 
   /** Drop `ids` at a map point: onto a target node, or nudge them by (ddx, ddy). */
   drop(ids: string[], targetId: string | null, ddx: number, ddy: number): void {
+    if (this.readOnly) return this.flashReadOnly();
     if (targetId) {
       const movable = ids.filter((id) => this.doc.canMove(id, targetId));
       if (movable.length) {
@@ -851,6 +914,7 @@ export class Editor {
 
   /** Alt+Click: connect the selected node to another node. */
   connectTo(targetId: string): void {
+    if (this.readOnly) return this.flashReadOnly();
     const from = this.primary;
     if (!from || from === targetId) return this.flash('Select a box, then Alt+Click another box to connect them.');
     const id = this.doc.addConnection(from, targetId);
@@ -989,5 +1053,126 @@ export class Editor {
     const md = [`# Notes: ${this.doc.title}`, ''];
     for (const n of this.doc.all().filter((x) => x.note)) md.push(`## ${n.text || '(untitled box)'}`, '', n.note!, '');
     await platform.exportFile(`${this.baseName()} notes.md`, md.join('\n'), { name: 'Markdown', extensions: ['md'] });
+  }
+
+  // ------------------------------------------------------------ collaboration
+
+  get readOnly(): boolean {
+    return !!this.collab?.readOnly;
+  }
+
+  private flashReadOnly(): void {
+    this.flash('This map is shared with you as view only.');
+  }
+
+  get peers(): Peer[] {
+    return this.collab?.session.peers() ?? [];
+  }
+
+  setUser(user: PeerUser): void {
+    this.user = { name: user.name.trim().slice(0, 40) || 'Guest', color: user.color };
+    saveUser(this.user);
+    this.collab?.session.setPresence({ user: this.user });
+    this.emit();
+  }
+
+  private cursorSent = 0;
+  private cursorTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Share the mouse position (map units) with collaborators, at most 20 times a second. */
+  setCursor(p: { x: number; y: number } | null): void {
+    if (!this.collab) return;
+    if (this.cursorTimer) clearTimeout(this.cursorTimer);
+    this.cursorTimer = null;
+    const send = () => {
+      this.cursorSent = Date.now();
+      this.collab?.session.setPresence({ cursor: p ? { x: Math.round(p.x), y: Math.round(p.y) } : null });
+    };
+    const wait = 50 - (Date.now() - this.cursorSent);
+    if (!p || wait <= 0) send();
+    else this.cursorTimer = setTimeout(send, wait);
+  }
+
+  /** Start sharing this map on the local network (desktop only). */
+  async startHosting(): Promise<void> {
+    if (!this.user) throw new Error('Enter your name first.');
+    if (this.collab) return;
+    const host = await platform.hostStart(this.doc.title);
+    const session = new CollabSession(`ws://127.0.0.1:${host.port}`, host.editCode, this.doc.ydoc, this.user, () => this.emit());
+    const addr = host.addresses[0] ?? '127.0.0.1';
+    this.collab = { role: 'host', readOnly: false, session, host, httpBase: `http://${addr}:${host.port}` };
+    this.emit();
+  }
+
+  /** Join a map someone is sharing. */
+  async join(address: string, code: string): Promise<void> {
+    if (!this.user) throw new Error('Enter your name first.');
+    const { httpBase, wsBase } = parseAddress(address);
+    const cleanCode = code.trim().toUpperCase();
+    const role = await checkCode(httpBase, cleanCode);
+    if (!(await this.confirmDiscard())) return;
+    await this.leave(false);
+    this.clearDraft();
+    const doc = new MapDoc();
+    this.replaceDoc(doc);
+    let wasConnected = false;
+    const session = new CollabSession(wsBase, cleanCode, doc.ydoc, this.user, () => {
+      if (session.status === 'connected' && !wasConnected) {
+        wasConnected = true;
+      } else if (session.status !== 'connected' && wasConnected && this.collab?.session === session) {
+        wasConnected = false;
+        this.flash('Lost the connection to the host. Your changes are kept and will sync when it is back.', 'error');
+      }
+      this.emit();
+    });
+    this.collab = { role: 'guest', readOnly: role === 'view', session, httpBase };
+    this.file = { name: 'Shared map', dirty: false };
+    platform.setDirty(false);
+    this.pendingJoin = null;
+    this.emit();
+    // Fit the map once the first sync arrives.
+    const fit = (synced: boolean) => {
+      if (!synced) return;
+      session.provider.off('sync', fit);
+      this.layoutVersion = -1;
+      this.zoomToFit(true);
+      this.updateWindowTitle();
+    };
+    session.provider.on('sync', fit);
+  }
+
+  /** Stop sharing (host) or leave (guest). A guest keeps a local, unsaved copy. */
+  async leave(notify = true): Promise<void> {
+    const c = this.collab;
+    if (!c) return;
+    this.collab = null;
+    c.session.destroy();
+    if (c.role === 'host') {
+      await platform.hostStop();
+      if (notify) this.flash('Stopped sharing.');
+    } else {
+      this.file = { name: `${this.doc.title}.amap`, dirty: true };
+      platform.setDirty(true);
+      if (notify) this.flash('You left the shared map. Your copy is still here; save it to keep it.');
+    }
+    this.emit();
+  }
+
+  // ----------------------------------------------------- comments, reactions
+
+  private get authorName(): string {
+    return this.user?.name ?? 'Me';
+  }
+
+  addComment(nodeId: string, text: string): void {
+    this.doc.addComment(nodeId, this.authorName, text, this.user?.color);
+  }
+
+  toggleReaction(nodeId: string, emoji: string): void {
+    this.doc.toggleReaction(nodeId, emoji, this.authorName);
+  }
+
+  toggleComments(): void {
+    this.showComments = !this.showComments;
+    this.emit();
   }
 }

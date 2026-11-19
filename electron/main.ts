@@ -1,6 +1,9 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import { existsSync, promises as fs } from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
+import { Bonjour, Service } from 'bonjour-service';
+import { CollabServer } from './collab-server';
 
 const FILE_FILTERS = [{ name: 'Argument maps', extensions: ['amap'] }];
 const MAX_RECENT = 10;
@@ -198,6 +201,69 @@ ipcMain.on('app:close-confirmed', () => {
 
 ipcMain.on('app:open-external', (_e, url: string) => {
   if (/^https?:\/\//.test(String(url))) void shell.openExternal(String(url));
+});
+
+// ------------------------------------------------------------ LAN sharing
+
+let server: CollabServer | null = null;
+let bonjour: Bonjour | null = null;
+
+function getBonjour(): Bonjour {
+  bonjour = bonjour ?? new Bonjour();
+  return bonjour;
+}
+
+ipcMain.handle('collab:host', async (_e, title: string) => {
+  if (server?.info) return server.info;
+  server = new CollabServer();
+  const info = await server.start({ staticDir: path.join(__dirname, '..', 'dist') });
+  try {
+    getBonjour().publish({
+      name: `${String(title).slice(0, 40) || 'Argument map'} (${os.hostname()})`.slice(0, 63),
+      type: 'argmap',
+      port: info.port,
+      txt: { title: String(title).slice(0, 100), host: os.hostname() },
+    });
+  } catch {
+    // Discovery is a convenience; joining by address still works.
+  }
+  return info;
+});
+
+ipcMain.handle('collab:stop', async () => {
+  try {
+    bonjour?.unpublishAll();
+  } catch {
+    /* ignore */
+  }
+  await server?.stop();
+  server = null;
+});
+
+ipcMain.handle('collab:status', () => (server?.info ? { ...server.info, peers: server.peerCount } : null));
+
+/** Look for hosts on the local network for a couple of seconds. */
+ipcMain.handle('collab:discover', async () => {
+  const found = new Map<string, { name: string; title: string; address: string; port: number }>();
+  const browser = getBonjour().find({ type: 'argmap' }, (svc: Service) => {
+    const address = (svc.addresses ?? []).find((a) => /^\d+\.\d+\.\d+\.\d+$/.test(a)) ?? svc.host;
+    const title = String((svc.txt as Record<string, string> | undefined)?.title ?? svc.name);
+    found.set(`${address}:${svc.port}`, { name: svc.name, title, address, port: svc.port });
+  });
+  await new Promise((r) => setTimeout(r, 2500));
+  browser.stop();
+  // Hide our own server from the list.
+  const own = server?.info;
+  return [...found.values()].filter((h) => !(own && h.port === own.port && own.addresses.includes(h.address)));
+});
+
+app.on('before-quit', () => {
+  void server?.stop();
+  try {
+    bonjour?.destroy();
+  } catch {
+    /* ignore */
+  }
 });
 
 const gotLock = app.requestSingleInstanceLock();

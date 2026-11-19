@@ -6,7 +6,8 @@ const common = {
   platform: 'node',
   target: 'node20',
   format: 'cjs',
-  external: ['electron'],
+  // ws can use these optional native add-ons when present; it works without them.
+  external: ['electron', 'bufferutil', 'utf-8-validate'],
   sourcemap: true,
   logLevel: 'info',
 };

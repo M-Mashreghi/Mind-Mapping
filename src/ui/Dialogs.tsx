@@ -25,7 +25,7 @@ const SECTIONS: { title: string; ids: string[] }[] = [
   { title: 'Text and style', ids: ['text.bold', 'text.italic', 'text.underline', 'text.strike', 'text.larger', 'text.smaller', 'text.bullets', 'text.numbers', 'edit.copyStyle', 'edit.pasteStyle'] },
   { title: 'Edit', ids: ['edit.text', 'edit.undo', 'edit.redo', 'edit.cut', 'edit.copy', 'edit.paste', 'edit.pasteRoot', 'edit.selectAll', 'edit.delete'] },
   { title: 'View', ids: ['view.fold', 'view.foldLevel', 'view.unfoldLevel', 'view.zoomIn', 'view.zoomOut', 'view.fit', 'view.recenter', 'view.fullscreen'] },
-  { title: 'Notes and search', ids: ['edit.note', 'view.notes', 'edit.link', 'edit.find'] },
+  { title: 'Notes, comments and search', ids: ['edit.note', 'view.notes', 'view.comments', 'edit.link', 'edit.find'] },
   { title: 'File', ids: ['file.new', 'file.open', 'file.save', 'file.saveAs'] },
 ];
 

@@ -1,5 +1,5 @@
 import * as Y from 'yjs';
-import { Connection, DEFAULT_THEME, MapFile, MapNode, GroupKind, NodeStyle, Theme, isClaim, isGroup } from './types';
+import { Comment, Reaction, Connection, DEFAULT_THEME, MapFile, MapNode, GroupKind, NodeStyle, Theme, isClaim, isGroup } from './types';
 
 type YNode = Y.Map<unknown>;
 
@@ -23,6 +23,9 @@ export class MapDoc {
   readonly nodes: Y.Map<YNode>;
   readonly meta: Y.Map<unknown>;
   readonly connections: Y.Map<Connection>;
+  /** Comments and reactions are social, so they are kept out of undo. */
+  readonly comments: Y.Map<Comment>;
+  readonly reactions: Y.Map<Reaction>;
   readonly undo: Y.UndoManager;
 
   constructor(ydoc: Y.Doc = new Y.Doc()) {
@@ -30,6 +33,8 @@ export class MapDoc {
     this.nodes = ydoc.getMap<YNode>('nodes');
     this.meta = ydoc.getMap('meta');
     this.connections = ydoc.getMap<Connection>('connections');
+    this.comments = ydoc.getMap<Comment>('comments');
+    this.reactions = ydoc.getMap<Reaction>('reactions');
     this.undo = new Y.UndoManager([this.nodes, this.meta, this.connections], { captureTimeout: 0 });
     this.undo.addTrackedOrigin(this);
   }
@@ -247,6 +252,51 @@ export class MapDoc {
     this.transact(() => this.connections.delete(id));
   }
 
+  commentsFor(nodeId: string): Comment[] {
+    const out: Comment[] = [];
+    this.comments.forEach((c) => c.node === nodeId && out.push(c));
+    return out.sort((a, b) => a.at.localeCompare(b.at));
+  }
+
+  commentCounts(): Map<string, number> {
+    const m = new Map<string, number>();
+    this.comments.forEach((c) => m.set(c.node, (m.get(c.node) ?? 0) + 1));
+    return m;
+  }
+
+  addComment(nodeId: string, author: string, text: string, color?: string): string | null {
+    if (!this.has(nodeId) || !text.trim()) return null;
+    const id = newId();
+    this.ydoc.transact(() => {
+      this.comments.set(id, { id, node: nodeId, author: author || 'Someone', color, text: text.trim().slice(0, 4000), at: new Date().toISOString() });
+    }, 'social');
+    return id;
+  }
+
+  removeComment(id: string): void {
+    this.ydoc.transact(() => this.comments.delete(id), 'social');
+  }
+
+  /** Reactions grouped per node: emoji -> authors. */
+  reactionsByNode(): Map<string, Map<string, string[]>> {
+    const out = new Map<string, Map<string, string[]>>();
+    this.reactions.forEach((r) => {
+      const m = out.get(r.node) ?? new Map<string, string[]>();
+      m.set(r.emoji, [...(m.get(r.emoji) ?? []), r.author]);
+      out.set(r.node, m);
+    });
+    return out;
+  }
+
+  toggleReaction(nodeId: string, emoji: string, author: string): void {
+    if (!this.has(nodeId)) return;
+    const key = `${nodeId}|${emoji}|${author}`;
+    this.ydoc.transact(() => {
+      if (this.reactions.has(key)) this.reactions.delete(key);
+      else this.reactions.set(key, { node: nodeId, emoji, author });
+    }, 'social');
+  }
+
   /** Add a reason or objection to a claim, with one empty premise. */
   addGroup(claimId: string, kind: GroupKind, text = ''): { groupId: string; premiseId: string } | null {
     const claim = this.get(claimId);
@@ -383,6 +433,13 @@ export class MapDoc {
     }
   }
 
+  /** Comments and reactions on deleted nodes are hidden, not deleted, so undo brings them back. */
+  liveComments(): Comment[] {
+    const out: Comment[] = [];
+    this.comments.forEach((c) => this.has(c.node) && out.push(c));
+    return out;
+  }
+
   private dropEmptyGroup(groupId: string): void {
     if (this.has(groupId) && this.children(groupId).length === 0) this.nodes.delete(groupId);
   }
@@ -516,6 +573,12 @@ export class MapDoc {
       title: this.title,
       nodes: this.all().sort((a, b) => (a.parent ?? '').localeCompare(b.parent ?? '') || a.order - b.order),
       connections: this.allConnections(),
+      comments: this.liveComments(),
+      reactions: (() => {
+        const out: Reaction[] = [];
+        this.reactions.forEach((r) => this.has(r.node) && out.push(r));
+        return out;
+      })(),
       theme: (this.meta.get('theme') as Partial<Theme> | undefined) ?? undefined,
     };
   }
@@ -539,7 +602,11 @@ export class MapDoc {
       this.nodes.clear();
       this.meta.clear();
       this.connections.clear();
+      this.comments.clear();
+      this.reactions.clear();
       this.meta.set('title', file.title || 'Untitled argument');
+      for (const c of file.comments ?? []) this.comments.set(c.id, c);
+      for (const r of file.reactions ?? []) this.reactions.set(`${r.node}|${r.emoji}|${r.author}`, r);
       if (file.theme) this.meta.set('theme', file.theme);
       for (const n of file.nodes) this.put(n);
       for (const c of file.connections ?? []) {
