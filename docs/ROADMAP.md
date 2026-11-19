@@ -30,7 +30,7 @@ Each phase ships as its own pull request.
 - Windows installer and Linux AppImage + .deb via electron-builder
 - GitHub Actions release workflow
 
-## Phase 4: LAN collaboration
+## Phase 4: LAN collaboration ✅
 
 - "Host this map" runs a WebSocket server inside the app and shows an address and join code
 - "Join" discovers hosts on the network (mDNS) or takes an address

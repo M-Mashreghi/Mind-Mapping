@@ -4,9 +4,9 @@ Free, open-source argument mapping for the desktop. Lay out a claim, the reasons
 support it and the objections against it, with co-premises, hidden assumptions and
 nested rebuttals, then share the map with people on your network.
 
-> Status: early development. Phases 1 and 2 (editor, styling, notes, export) are in
-> place. See the [roadmap](docs/ROADMAP.md) for what comes next: Windows/Linux
-> installers, live LAN collaboration and Google Drive.
+> Status: early development. The editor, styling, notes, export, Windows/Linux
+> installers and live LAN collaboration are in place. See the [roadmap](docs/ROADMAP.md)
+> for what comes next: Google Drive, presenting and more.
 
 ## Download
 
@@ -35,6 +35,30 @@ Windows may show a SmartScreen warning the first time because the app is not cod
 - Find (Ctrl+F) across box text and notes
 - Export to PNG, SVG, PDF, Markdown or plain-text outline, and notes; import MindMup `.mup` files
 - Version history kept inside the map file, with one-click restore
+- **Work together on your local network**: one person shares the map from the desktop app,
+  others join from the app or from any browser; live edits, cursors and selections,
+  view-only guests, comments and emoji reactions on boxes
+
+## Working together on a local network
+
+No internet or account is needed. Everyone must be on the same Wi-Fi or office network.
+
+1. The host opens the map in the desktop app and chooses **Share** (top right) → **Start sharing**.
+   The app shows an address such as `192.168.1.20:47821` and two codes: one that can edit and
+   one that can only view.
+2. Others either
+   - open the desktop app, choose **Share**, pick the map from the list of maps found on the
+     network (or type the address) and enter the code, or
+   - open the link the host copied, for example `http://192.168.1.20:47821/?join=KSKE26`, in
+     any browser. Nothing has to be installed.
+3. Everyone sees each other's changes, mouse pointers and selected boxes as they happen. Select a
+   box and use ☺ in its toolbar to react, or open **Notes** (N) to read and write comments.
+
+The map stays a file on the host's computer and keeps saving there. When a guest leaves, they
+keep a copy they can save. If the connection drops, changes are kept and sync again when it's
+back. The first time you share, Windows may ask whether to allow the app on private networks;
+choose **Allow**. On Linux, open TCP port 47821 if a firewall is running
+(for example `sudo ufw allow 47821/tcp`).
 
 ## Keyboard shortcuts
 
@@ -88,7 +112,8 @@ to a GitHub Release.
 | `src/export` | SVG/PNG/PDF rendering and outline export |
 | `src/theme.ts` | Fonts, sizes and how styles turn into CSS |
 | `src/platform` | Desktop vs. browser file access |
-| `electron` | Electron main and preload scripts |
+| `src/collab` | Joining a shared map: connection, presence |
+| `electron` | Electron main and preload scripts, LAN collaboration server |
 
 ## Licence
 

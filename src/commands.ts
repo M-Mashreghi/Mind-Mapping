@@ -175,6 +175,22 @@ const list: Command[] = [
   },
 ];
 
+list.push(
+  {
+    id: 'file.share', label: 'Share on local network…',
+    run: () => window.dispatchEvent(new CustomEvent('argmap:share')),
+  },
+  { id: 'view.comments', label: 'Show comments and reactions', shortcut: 'Shift+C', run: (ed) => ed.toggleComments(), checked: (ed) => ed.showComments },
+);
+
+/** Commands a view-only guest may still use: they don't change the shared map. */
+const READ_ONLY_SAFE = /^(file\.(new|open|saveAs|export\w*|share)|edit\.(copy|select\w*|clearSelection|find|note)|view\.(?!fold|unfold|resetStyling|theme|labels|lines|comfortable)|help\.)/;
+for (const c of list) {
+  if (READ_ONLY_SAFE.test(c.id)) continue;
+  const enabled = c.enabled;
+  c.enabled = (ed) => !ed.readOnly && (enabled ? enabled(ed) : true);
+}
+
 export const commands = new Map(list.map((c) => [c.id, c]));
 
 export function cmd(id: string): Command {
@@ -192,7 +208,7 @@ export const menus: { label: string; items: MenuItem[] }[] = [
       'file.new', 'file.open', { label: 'Open recent', items: [] }, '-', 'file.save', 'file.saveAs', '-',
       { label: 'Import', items: ['file.importMup'] },
       { label: 'Export', items: ['file.exportPng', 'file.exportSvg', 'file.exportPdf', '-', 'file.exportMd', 'file.exportTxt', 'file.exportNotes'] },
-      '-', 'file.history', 'file.rename',
+      '-', 'file.share', '-', 'file.history', 'file.rename',
     ],
   },
   {
@@ -209,7 +225,7 @@ export const menus: { label: string; items: MenuItem[] }[] = [
     label: 'View',
     items: [
       { label: 'Fold / unfold', items: ['view.fold', 'view.foldLevel', 'view.unfoldLevel', 'view.foldAll', 'view.unfoldAll'] },
-      'view.grid', 'view.comfortable', 'view.notes',
+      'view.grid', 'view.comfortable', 'view.notes', 'view.comments',
       { label: 'Labels', items: ['view.labels.none', 'view.labels.level', 'view.labels.hierarchical', 'view.labels.sequential'] },
       { label: 'Lines', items: ['view.lines.curved', 'view.lines.straight', 'view.lines.elbow'] },
       { label: 'Appearance', items: ['view.appearance.system', 'view.appearance.light', 'view.appearance.dark'] },
@@ -289,6 +305,7 @@ export function commandForKey(e: KeyboardEvent): string | null {
   if (code === 'KeyF') return shift ? 'view.unfoldLevel' : 'view.fold';
   if (code === 'KeyD' && !shift) return 'edit.detach';
   if (code === 'KeyN') return shift ? 'view.notes' : 'edit.note';
+  if (code === 'KeyC' && shift) return 'view.comments';
   if (code === 'KeyT') return shift ? 'text.smaller' : 'text.larger';
   return null;
 }

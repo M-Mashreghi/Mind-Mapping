@@ -108,6 +108,7 @@ export function Canvas({ editor, onContextMenu }: Props) {
     } else if (!selected.has(id)) {
       editor.select([id]);
     }
+    if (editor.readOnly) return;
     const ids = additive ? editor.selection : selected.has(id) ? selection : [id];
     const moving = new Set<string>();
     for (const sid of ids) for (const d of doc.subtreeIds(sid)) moving.add(d);
@@ -119,6 +120,10 @@ export function Canvas({ editor, onContextMenu }: Props) {
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
+    if (editor.collab) {
+      const p = local(e);
+      editor.setCursor(editor.screenToMap(p.x, p.y));
+    }
     const pan = panRef.current;
     if (pan && pan.pointerId === e.pointerId) {
       const dx = e.clientX - pan.startX;
@@ -161,9 +166,10 @@ export function Canvas({ editor, onContextMenu }: Props) {
     const id = target?.dataset.nodeId;
     if (id) {
       const k = doc.get(id)?.kind;
-      if (k === 'claim' || k === 'sticky') editor.startEditing(id);
+      if ((k === 'claim' || k === 'sticky') && !editor.readOnly) editor.startEditing(id);
       return;
     }
+    if (editor.readOnly) return;
     const p = local(e);
     editor.addRoot(editor.screenToMap(p.x, p.y));
   };
@@ -192,6 +198,10 @@ export function Canvas({ editor, onContextMenu }: Props) {
   const matches = new Set(editor.find?.matches ?? []);
   const current = editor.find?.matches[editor.find.index];
   const connections = doc.allConnections();
+  const peers = editor.peers;
+  const commentCounts = editor.showComments ? doc.commentCounts() : new Map<string, number>();
+  const reactions = editor.showComments ? doc.reactionsByNode() : new Map<string, Map<string, string[]>>();
+  const me = editor.user?.name ?? 'Me';
 
   const grid = 24 * view.zoom;
   const style: React.CSSProperties = editor.showGrid
@@ -212,6 +222,7 @@ export function Canvas({ editor, onContextMenu }: Props) {
       onPointerCancel={onPointerUp}
       onDoubleClick={onDoubleClick}
       onContextMenu={onContext}
+      onPointerLeave={() => editor.setCursor(null)}
     >
       <div className="world" style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})` }}>
         <svg className="edges" width="1" height="1" overflow="visible" aria-hidden="true">
@@ -246,8 +257,30 @@ export function Canvas({ editor, onContextMenu }: Props) {
             dropTarget={drag?.target === b.id}
             editor={editor}
             editing={editing?.id === b.id ? editing : null}
+            comments={commentCounts.get(b.id) ?? 0}
+            reactions={reactions.get(b.id)}
+            me={me}
           />
         ))}
+        {peers.flatMap((p) =>
+          p.selection.map((id) => {
+            const b = layout.boxes.get(id);
+            if (!b) return null;
+            return (
+              <div key={`${p.clientId}-${id}`} className="peer-selection" style={{ left: b.x - 4, top: b.y - 4, width: b.w + 8, height: b.h + 8, borderColor: p.user.color }}>
+                <span className="peer-tag" style={{ background: p.user.color }}>{p.editing === id ? `${p.user.name} is typing…` : p.user.name}</span>
+              </div>
+            );
+          }),
+        )}
+        {peers.map((p) =>
+          p.cursor ? (
+            <div key={p.clientId} className="peer-cursor" style={{ left: p.cursor.x, top: p.cursor.y, transform: `scale(${1 / view.zoom})` }} aria-hidden="true">
+              <svg width="16" height="20" viewBox="0 0 16 20"><path d="M1 1l13 9-6 1.2L5 18z" fill={p.user.color} stroke="#fff" strokeWidth="1.2" strokeLinejoin="round" /></svg>
+              <span style={{ background: p.user.color }}>{p.user.name}</span>
+            </div>
+          ) : null,
+        )}
         <svg className="connections" width="1" height="1" overflow="visible">
           {connections.map((c) => (
             <ConnectionPath
@@ -344,9 +377,12 @@ interface ClaimProps {
   dropTarget: boolean;
   editor: Editor;
   editing: { id: string; initial?: string } | null;
+  comments: number;
+  reactions?: Map<string, string[]>;
+  me: string;
 }
 
-function ClaimView({ box, node, theme, label, match, offset, selected, dropTarget, editor, editing }: ClaimProps) {
+function ClaimView({ box, node, theme, label, match, offset, selected, dropTarget, editor, editing, comments, reactions, me }: ClaimProps) {
   const cls = [
     node.kind === 'sticky' ? 'sticky' : 'claim',
     node.kind === 'claim' && node.parent === null ? 'root' : '',
@@ -390,6 +426,23 @@ function ClaimView({ box, node, theme, label, match, offset, selected, dropTarge
           ) : null}
         </span>
       ) : null}
+      {comments || reactions?.size ? (
+        <span className="node-social" onPointerDown={(e) => e.stopPropagation()}>
+          {[...(reactions ?? new Map<string, string[]>())].map(([emoji, authors]) => (
+            <button key={emoji} className={`reaction-chip${authors.includes(me) ? ' mine' : ''}`} title={authors.join(', ')}
+              aria-label={`${emoji} ${authors.length}`} disabled={editor.readOnly}
+              onClick={() => editor.toggleReaction(node.id, emoji)}>
+              {emoji}{authors.length > 1 ? <small>{authors.length}</small> : null}
+            </button>
+          ))}
+          {comments ? (
+            <button className="comment-chip" title={`${comments} comment${comments > 1 ? 's' : ''}`} aria-label={`${comments} comments`}
+              onClick={() => { editor.select([node.id]); editor.toggleNotes(true); }}>
+              <CommentIcon /> {comments}
+            </button>
+          ) : null}
+        </span>
+      ) : null}
       {box.hidden ? (
         <button
           className="fold-badge"
@@ -401,6 +454,14 @@ function ClaimView({ box, node, theme, label, match, offset, selected, dropTarge
         </button>
       ) : null}
     </div>
+  );
+}
+
+function CommentIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true">
+      <path d="M2.5 3h11v8h-6l-3.5 3v-3h-1.5z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+    </svg>
   );
 }
 

@@ -3,6 +3,7 @@ import { Editor } from '../editor';
 import { menus } from '../commands';
 import { MenuList, useDismiss } from './Menu';
 import { Logo } from './Logo';
+import { initial } from './ShareDialog';
 
 export function MenuBar({ editor }: { editor: Editor }) {
   const [open, setOpen] = useState<string | null>(null);
@@ -62,8 +63,27 @@ export function MenuBar({ editor }: { editor: Editor }) {
           }}
         />
         <span className={`save-state${editor.file.dirty ? ' dirty' : ''}`}>
-          {editor.file.dirty ? (editor.file.path ? 'Saving…' : 'Not saved') : editor.file.path ? 'Saved' : ''}
+          {editor.collab?.role === 'guest'
+            ? editor.collab.readOnly ? 'View only' : 'Shared'
+            : editor.file.dirty ? (editor.file.path ? 'Saving…' : 'Not saved') : editor.file.path ? 'Saved' : ''}
         </span>
+      </div>
+      <div className="share-area">
+        {editor.collab ? (
+          <div className="avatars" aria-label="People here">
+            {editor.peers.slice(0, 5).map((p) => (
+              <span key={p.clientId} className="avatar" style={{ background: p.user.color }} title={p.user.name}>{initial(p.user.name)}</span>
+            ))}
+            {editor.peers.length > 5 ? <span className="avatar more">+{editor.peers.length - 5}</span> : null}
+          </div>
+        ) : null}
+        <button
+          className={`share-button${editor.collab ? ' live' : ''}`}
+          onClick={() => window.dispatchEvent(new CustomEvent('argmap:share'))}
+          title="Work together on your local network"
+        >
+          {editor.collab ? (editor.collab.session.status === 'connected' ? 'Live' : 'Reconnecting…') : 'Share'}
+        </button>
       </div>
     </header>
   );

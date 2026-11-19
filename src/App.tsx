@@ -10,6 +10,7 @@ import { NodeToolbar } from './ui/NodeToolbar';
 import { NotesPanel } from './ui/NotesPanel';
 import { FindBar } from './ui/FindBar';
 import { ThemePanel } from './ui/ThemePanel';
+import { ShareDialog } from './ui/ShareDialog';
 import { isClaim } from './model/types';
 
 const editor = new Editor(domMeasure);
@@ -24,7 +25,7 @@ function isTextField(el: EventTarget | null): boolean {
 export function App() {
   useSyncExternalStore(editor.subscribe, editor.getVersion);
   const [menu, setMenu] = useState<{ kind: 'node' | 'canvas'; x: number; y: number } | null>(null);
-  const [dialog, setDialog] = useState<'shortcuts' | 'about' | 'theme' | 'history' | null>(null);
+  const [dialog, setDialog] = useState<'shortcuts' | 'about' | 'theme' | 'history' | 'share' | null>(editor.pendingJoin ? 'share' : null);
   const closeMenu = useCallback(() => setMenu(null), []);
 
   // Re-measure once web fonts are ready.
@@ -37,12 +38,15 @@ export function App() {
     const onAbout = () => setDialog('about');
     const onTheme = () => setDialog('theme');
     const onHistory = () => setDialog('history');
+    const onShare = () => setDialog('share');
+    window.addEventListener('argmap:share', onShare);
     window.addEventListener('argmap:history', onHistory);
     window.addEventListener('argmap:shortcuts', onShortcuts);
     window.addEventListener('argmap:about', onAbout);
     window.addEventListener('argmap:theme', onTheme);
     return () => {
       window.removeEventListener('argmap:theme', onTheme);
+      window.removeEventListener('argmap:share', onShare);
       window.removeEventListener('argmap:history', onHistory);
       window.removeEventListener('argmap:shortcuts', onShortcuts);
       window.removeEventListener('argmap:about', onAbout);
@@ -72,7 +76,7 @@ export function App() {
         return;
       }
       // Typing a character on a selected claim starts editing with that character.
-      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey && isClaim(editor.doc.get(editor.primary))) {
+      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey && !editor.readOnly && isClaim(editor.doc.get(editor.primary))) {
         e.preventDefault();
         editor.startEditing(undefined, e.key);
       }
@@ -93,7 +97,7 @@ export function App() {
     const copy = (e: ClipboardEvent) => onCopy(e, false);
     const cut = (e: ClipboardEvent) => onCopy(e, true);
     const paste = (e: ClipboardEvent) => {
-      if (editor.editing || isTextField(e.target)) return;
+      if (editor.editing || isTextField(e.target) || editor.readOnly) return;
       e.preventDefault();
       editor.pasteText(e.clipboardData?.getData('text/plain') ?? null);
     };
@@ -142,7 +146,9 @@ export function App() {
         <NodeToolbar editor={editor} onMore={(x, y) => setMenu({ kind: 'node', x, y })} />
         {editor.find ? <FindBar editor={editor} /> : null}
 
-        <div className="toolbar toolbar-insert" role="toolbar" aria-label="Insert">
+        {editor.readOnly ? (
+          <div className="toolbar toolbar-insert view-only-badge" role="status">View only</div>
+        ) : <div className="toolbar toolbar-insert" role="toolbar" aria-label="Insert">
           <button onClick={() => cmd('insert.root').run(editor)} title="New root claim (Ctrl+D)">
             <span className="swatch swatch-claim" /> Claim
           </button>
@@ -152,7 +158,7 @@ export function App() {
           <button onClick={() => editor.addObjection()} disabled={!editor.primary} title="Add an objection (Alt+O)">
             <span className="swatch swatch-objection" /> Objection
           </button>
-        </div>
+        </div>}
 
         <div className="toolbar toolbar-view" role="toolbar" aria-label="View">
           <button onClick={() => editor.undo()} disabled={!editor.doc.undo.canUndo()} title="Undo (Ctrl+Z)" aria-label="Undo">↶</button>
@@ -185,6 +191,7 @@ export function App() {
       {dialog === 'about' ? <AboutDialog onClose={() => setDialog(null)} /> : null}
       {dialog === 'theme' ? <ThemePanel editor={editor} onClose={() => setDialog(null)} /> : null}
       {dialog === 'history' ? <HistoryDialog editor={editor} onClose={() => setDialog(null)} /> : null}
+      {dialog === 'share' ? <ShareDialog editor={editor} onClose={() => setDialog(null)} /> : null}
     </div>
   );
 }
