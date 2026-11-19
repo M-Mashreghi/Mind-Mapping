@@ -6,10 +6,11 @@ interface Props {
   text: string;
   /** Typed character that started editing: replaces the text. */
   initial?: string;
+  style?: React.CSSProperties;
 }
 
 /** In-place plain-text editor for a claim. Enter commits, Shift+Enter adds a line, Esc cancels. */
-export function NodeEditor({ editor, text, initial }: Props) {
+export function NodeEditor({ editor, text, initial, style }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const done = useRef(false);
 
@@ -56,6 +57,7 @@ export function NodeEditor({ editor, text, initial }: Props) {
     <div
       ref={ref}
       className="claim-text claim-input"
+      style={style}
       dir="auto"
       contentEditable="plaintext-only"
       suppressContentEditableWarning
