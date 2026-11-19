@@ -199,6 +199,24 @@ export function App() {
       {dialog === 'history' ? <HistoryDialog editor={editor} onClose={() => setDialog(null)} /> : null}
       {dialog === 'drive' ? <DriveDialog editor={editor} onClose={() => setDialog(null)} /> : null}
       {dialog === 'share' ? <ShareDialog editor={editor} onClose={() => setDialog(null)} /> : null}
+      {editor.invitations.length ? (
+        <aside className="join-popups invites" aria-live="polite" aria-label="Invitations">
+          <ul>
+            {editor.invitations.map((inv) => (
+              <li key={inv.id} className="join-request">
+                <span className="avatar" style={{ background: inv.fromColor }}>{(inv.from.trim()[0] ?? '?').toLocaleUpperCase()}</span>
+                <div className="who">
+                  <span><strong dir="auto">{inv.from}</strong> invites you to {inv.role === 'edit' ? 'edit' : 'view'} <strong dir="auto">“{inv.title}”</strong></span>
+                  <div className="join-actions">
+                    <button className="primary" onClick={() => void editor.acceptInvitation(inv.id)}>Join</button>
+                    <button className="link-button" onClick={() => editor.dismissInvitation(inv.id)}>Not now</button>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </aside>
+      ) : null}
       {dialog !== 'share' && editor.collab?.role === 'host' && editor.hostState?.requests.length ? (
         <aside className="join-popups" aria-live="polite" aria-label="People asking to join">
           <ul>

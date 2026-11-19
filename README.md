@@ -91,7 +91,13 @@ No internet or account is needed. Everyone must be on the same Wi-Fi or office n
 4. Under **Share**, the host sees everyone who is in, can switch each person between
    **Can edit** and **View only** at any time, **Remove** someone, and stop always allowing
    someone.
-5. Everyone sees each other's changes, selected boxes and mouse pointers as they happen. Each
+5. While sharing, **Share** also lists **On your network**: people who have the app open on the
+   same network. Pick **To edit** or **To view** and press **Invite**; they get an invitation and
+   come straight in with **Join**. Anyone can untick **Let people on this network see me and
+   invite me** to stay hidden.
+6. When joining, the list of shared maps updates by itself and shows who is sharing each map and
+   how many people are in it. The host's **Live** button shows how many people are in the map.
+7. Everyone sees each other's changes, selected boxes and mouse pointers as they happen. Each
    person's pointer has their own colour with their name next to it. Select a box and use ☺ in
    its toolbar to react, or open **Notes** (N) to read and write comments.
 

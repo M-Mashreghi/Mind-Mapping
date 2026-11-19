@@ -15,10 +15,10 @@ afterEach(async () => {
   for (const s of servers.splice(0)) await s.stop();
 });
 
-async function start() {
+async function start(extra: { title?: string } = {}) {
   const s = new CollabServer();
   servers.push(s);
-  const info = await s.start({ port: 0, host: '127.0.0.1' });
+  const info = await s.start({ port: 0, host: '127.0.0.1', ...extra });
   return { s, info };
 }
 
@@ -202,5 +202,31 @@ describe('LAN collaboration server', () => {
     const b = connect(info.port, x.ticket);
     a.p.awareness.setLocalStateField('user', { name: 'Sara', color: '#f00' });
     await until(() => [...b.p.awareness.getStates().values()].some((st) => st.user?.name === 'Sara'));
+  });
+});
+
+describe('invitations and room size', () => {
+  it('lets an invited person straight in, never with more than offered', async () => {
+    const { s, info } = await start();
+    const me = identity();
+    const token = s.createInvite(me.deviceId, 'Sara', 'view');
+    expect(s.state().invited).toEqual([{ deviceId: me.deviceId, name: 'Sara', role: 'view' }]);
+    const res = await requestAccess(`http://127.0.0.1:${info.port}`, { name: 'Sara', color: '#e8590c', want: 'edit' }, { identity: me, invite: token });
+    expect(res.role).toBe('view');
+    // A wrong token, or someone else's device, has to ask as usual.
+    const other = identity();
+    const asked = ask(s, info.port, { id: other }, (id) => s.deny(id));
+    await expect(asked).rejects.toThrow(/did not let you in/);
+  });
+
+  it('tells the network how many people are in the map', async () => {
+    const { s, info } = await start({ title: 'Remote work' });
+    const count = async () => ((await (await fetch(`http://127.0.0.1:${info.port}/api/info`)).json()) as { people: number; title: string });
+    expect(await count()).toMatchObject({ people: 0, title: 'Remote work' });
+    connect(info.port, info.hostTicket);
+    const a = await ask(s, info.port, {}, (id) => void s.approve(id, 'edit'));
+    connect(info.port, a.ticket);
+    await until(() => s.peopleHere === 2);
+    expect((await count()).people).toBe(2);
   });
 });

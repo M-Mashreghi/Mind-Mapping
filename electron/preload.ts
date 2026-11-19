@@ -17,7 +17,18 @@ contextBridge.exposeInMainWorld('argmapDesktop', {
     ipcRenderer.removeAllListeners('app:open-path');
     ipcRenderer.on('app:open-path', (_e, p: string) => handler(p));
   },
-  hostStart: (title: string) => ipcRenderer.invoke('collab:host', title),
+  hostStart: (title: string, hostName?: string) => ipcRenderer.invoke('collab:host', title, hostName),
+  lanSetMe: (me: unknown) => ipcRenderer.invoke('lan:setMe', me),
+  lanNearby: () => ipcRenderer.invoke('lan:nearby'),
+  lanInvite: (deviceId: string, role: string, from: unknown) => ipcRenderer.invoke('lan:invite', deviceId, role, from),
+  onNearby: (handler: (n: unknown) => void) => {
+    ipcRenderer.removeAllListeners('lan:nearby');
+    ipcRenderer.on('lan:nearby', (_e, n) => handler(n));
+  },
+  onInvitation: (handler: (inv: unknown) => void) => {
+    ipcRenderer.removeAllListeners('lan:invitation');
+    ipcRenderer.on('lan:invitation', (_e, inv) => handler(inv));
+  },
   hostStop: () => ipcRenderer.invoke('collab:stop'),
   hostStatus: () => ipcRenderer.invoke('collab:status'),
   discoverHosts: () => ipcRenderer.invoke('collab:discover'),

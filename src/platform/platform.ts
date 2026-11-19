@@ -21,8 +21,13 @@ export interface DesktopBridge {
   toggleFullScreen(): void;
   onCloseRequest(handler: () => void): void;
   onOpenPath(handler: (path: string) => void): void;
-  hostStart(title: string): Promise<HostInfo>;
+  hostStart(title: string, hostName?: string): Promise<HostInfo>;
   hostStop(): Promise<void>;
+  lanSetMe(me: LanMe): Promise<void>;
+  lanNearby(): Promise<Nearby>;
+  lanInvite(deviceId: string, role: Role, from: { name: string; color: string }): Promise<void>;
+  onNearby(handler: (n: Nearby) => void): void;
+  onInvitation(handler: (inv: Invitation) => void): void;
   hostStatus(): Promise<(HostInfo & { peers: number }) | null>;
   discoverHosts(): Promise<FoundHost[]>;
   hostAction(method: string, ...args: unknown[]): Promise<void>;
@@ -66,6 +71,7 @@ export interface Guest {
 export interface HostState {
   requests: JoinRequest[];
   guests: Guest[];
+  invited: Array<{ deviceId: string; name: string; role: Role }>;
   trusted: Array<{ deviceId: string; name: string; role: Role; since: string }>;
 }
 
@@ -125,6 +131,51 @@ export interface FoundHost {
   title: string;
   address: string;
   port: number;
+  /** Who is sharing it. */
+  hostName?: string;
+  /** People in it right now, the host included; null when unknown. */
+  people?: number | null;
+}
+
+export interface NearbyPerson {
+  deviceId: string;
+  name: string;
+  color: string;
+  address: string;
+  port: number;
+}
+
+export interface Nearby {
+  hosts: FoundHost[];
+  people: NearbyPerson[];
+}
+
+export interface Invitation {
+  id: string;
+  from: string;
+  fromColor: string;
+  title: string;
+  address: string;
+  port: number;
+  role: Role;
+  invite: string;
+  at: number;
+}
+
+export interface LanMe {
+  name: string;
+  color: string;
+  deviceId: string;
+  visible: boolean;
+}
+
+/** Seeing who is around on the local network, and inviting them (desktop only). */
+export interface LanApi {
+  setMe(me: LanMe): Promise<void>;
+  nearby(): Promise<Nearby>;
+  invite(deviceId: string, role: Role, from: { name: string; color: string }): Promise<void>;
+  onNearby(handler: (n: Nearby) => void): void;
+  onInvitation(handler: (inv: Invitation) => void): void;
 }
 
 export interface FileFilter {
@@ -155,10 +206,11 @@ export interface Platform {
   exportPdf(svg: string, width: number, height: number, suggestedName: string): Promise<SavedFile | null>;
   /** LAN sharing. Only the desktop app can host. */
   canHost: boolean;
-  hostStart(title: string): Promise<HostInfo>;
+  hostStart(title: string, hostName?: string): Promise<HostInfo>;
   hostStop(): Promise<void>;
   discoverHosts(): Promise<FoundHost[]>;
   host?: HostControls;
+  lan?: LanApi;
   drive?: DriveApi;
 }
 
@@ -177,9 +229,16 @@ function desktopPlatform(bridge: DesktopBridge): Platform {
     exportFile: (name, data, filter) => bridge.exportFile(name, data, filter),
     exportPdf: (svg, w, h, name) => bridge.exportPdf(svg, w, h, name),
     canHost: true,
-    hostStart: (title) => bridge.hostStart(title),
+    hostStart: (title, hostName) => bridge.hostStart(title, hostName),
     hostStop: () => bridge.hostStop(),
     discoverHosts: () => bridge.discoverHosts(),
+    lan: {
+      setMe: (me) => bridge.lanSetMe(me),
+      nearby: () => bridge.lanNearby(),
+      invite: (id, role, from) => bridge.lanInvite(id, role, from),
+      onNearby: (h) => bridge.onNearby(h),
+      onInvitation: (h) => bridge.onInvitation(h),
+    },
     host: {
       approve: (id, role, always) => bridge.hostAction('approve', id, role, always),
       deny: (id) => bridge.hostAction('deny', id),
