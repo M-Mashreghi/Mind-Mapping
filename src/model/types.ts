@@ -40,6 +40,9 @@ export interface MapNode {
   /** Root/sticky only: position of the top-centre of the box, in map units. */
   x?: number;
   y?: number;
+  /** Sticky note only: its size in map units (a square paper note by default). */
+  w?: number;
+  h?: number;
   /** Manual nudge applied to this node and everything below it. */
   dx?: number;
   dy?: number;
@@ -90,6 +93,8 @@ export interface Theme {
   density: 'compact' | 'comfortable';
   numbering: Numbering;
   lineStyle: LineStyle;
+  /** Write "Because" / "But" on lines that have no words of their own. */
+  lineLabels: boolean;
   lineWidth: number;
   font: string;
   fontSize: FontSize;
@@ -108,6 +113,7 @@ export const DEFAULT_THEME: Theme = {
   density: 'compact',
   numbering: 'level',
   lineStyle: 'elbow',
+  lineLabels: false,
   lineWidth: 1.5,
   font: 'system',
   fontSize: 's',
@@ -120,10 +126,19 @@ export const DEFAULT_THEME: Theme = {
   shadow: true,
 };
 
+/** The words written on the line from a reason or objection to its claim. */
+export const lineLabel = (group: MapNode, theme: Pick<Theme, 'lineLabels'>): string =>
+  group.text.trim() || (theme.lineLabels ? (group.kind === 'objection' ? 'But' : 'Because') : '');
+
 export const isGroup = (n: MapNode | undefined): boolean =>
   !!n && (n.kind === 'reason' || n.kind === 'objection');
 
 export const isClaim = (n: MapNode | undefined): boolean => !!n && n.kind === 'claim';
+
+/** Sticky notes are square paper notes: about 3×3 inches next to the claim boxes. */
+export const STICKY = { size: 240, min: 120, max: 800 };
+export const stickyW = (n: MapNode): number => Math.min(STICKY.max, Math.max(STICKY.min, Math.round(n.w ?? STICKY.size)));
+export const stickyH = (n: MapNode): number => Math.min(STICKY.max, Math.max(STICKY.min, Math.round(n.h ?? n.w ?? STICKY.size)));
 
 /** Claims and sticky notes: nodes that carry text in a box. */
 export const isTextNode = (n: MapNode | undefined): boolean => !!n && (n.kind === 'claim' || n.kind === 'sticky');

@@ -13,7 +13,7 @@ export function toMarkdown(title: string, nodes: MapNode[], withNotes = true): s
     lines.push(`${pad}- ${depth === 0 ? `**${text}**` : text}${n.implicit ? ' _(implicit)_' : ''}`);
     if (withNotes && n.note) lines.push(`${pad}  > ${oneLine(n.note)}`);
     for (const g of kids.get(n.id) ?? []) {
-      lines.push(`${pad}  - ${g.kind === 'reason' ? '✔ Reason' : '✘ Objection'}${(kids.get(g.id) ?? []).length > 1 ? ' (co-premises)' : ''}:`);
+      lines.push(`${pad}  - ${g.kind === 'reason' ? '✔ Reason' : '✘ Objection'}${(kids.get(g.id) ?? []).length > 1 ? ' (co-premises)' : ''}${g.text.trim() ? ` "${oneLine(g.text)}"` : ''}:`);
       for (const p of kids.get(g.id) ?? []) claim(p, depth + 2);
     }
   };

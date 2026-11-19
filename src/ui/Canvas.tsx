@@ -1,9 +1,20 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Editor } from '../editor';
-import { hitTest, Box, Edge } from '../layout/layout';
-import { Connection, LineStyle, MapNode, Theme } from '../model/types';
+import { hitTest, placeLineLabels, Box, Edge } from '../layout/layout';
+
+let labelCtx: CanvasRenderingContext2D | null | undefined;
+/** Width of the words on a line, in the label font. */
+function labelWidth(text: string): number {
+  if (labelCtx === undefined) {
+    labelCtx = document.createElement('canvas').getContext('2d');
+    if (labelCtx) labelCtx.font = "400 14px 'Inter', 'Vazirmatn', sans-serif";
+  }
+  return (labelCtx ? labelCtx.measureText(text).width : text.length * 7.5) + 14;
+}
+import { Connection, LineStyle, MapNode, STICKY, Theme } from '../model/types';
 import { boxStyle, textStyle, themeVars } from '../theme';
 import { NodeEditor } from './NodeEditor';
+import { Emoji } from './Emoji';
 
 interface Props {
   editor: Editor;
@@ -167,6 +178,7 @@ export function Canvas({ editor, onContextMenu }: Props) {
     if (id) {
       const k = doc.get(id)?.kind;
       if ((k === 'claim' || k === 'sticky') && !editor.readOnly) editor.startEditing(id);
+      else if ((k === 'reason' || k === 'objection') && !editor.readOnly) editor.editLineLabel(id);
       return;
     }
     if (editor.readOnly) return;
@@ -240,6 +252,9 @@ export function Canvas({ editor, onContextMenu }: Props) {
           {layout.edges.map((edge) => (
             <EdgePath key={edge.from} edge={edge} lineStyle={theme.lineStyle} from={offsetFor(edge.from)} to={offsetFor(edge.to)} />
           ))}
+          {layout.edges.map((edge) => (
+            <EdgePath key={`hit-${edge.from}`} hit edge={edge} lineStyle={theme.lineStyle} from={offsetFor(edge.from)} to={offsetFor(edge.to)} />
+          ))}
         </svg>
         {groups.map((b) => (
           <GroupView key={b.id} box={b} node={nodes.get(b.id)!} offset={offsetFor(b.id)} selected={selected.has(b.id)} dropTarget={drag?.target === b.id} />
@@ -261,6 +276,20 @@ export function Canvas({ editor, onContextMenu }: Props) {
             comments={commentCounts.get(b.id) ?? 0}
             reactions={reactions.get(b.id)}
             me={me}
+          />
+        ))}
+        {placeLineLabels(layout, nodes, theme, labelWidth, offsetFor, editor.labelEditing ?? undefined).map((l) => (
+          <EdgeLabel
+            key={`label-${l.id}`}
+            id={l.id}
+            kind={l.kind}
+            x={l.x}
+            y={l.y}
+            text={l.text}
+            own={l.own}
+            editing={editor.labelEditing === l.id}
+            selected={selected.has(l.id)}
+            editor={editor}
           />
         ))}
         {peers.flatMap((p) =>
@@ -337,14 +366,64 @@ export function edgePath(x1: number, y1: number, x2: number, y2: number, style: 
   return `M${x1} ${y1} C${x1} ${my} ${x2} ${my} ${x2} ${y2}`;
 }
 
-function EdgePath({ edge, from, to, lineStyle }: { edge: Edge; from: Off; to: Off; lineStyle: LineStyle }) {
+function EdgePath({ edge, from, to, lineStyle, hit }: { edge: Edge; from: Off; to: Off; lineStyle: LineStyle; hit?: boolean }) {
   const x1 = edge.x1 + from.dx, y1 = edge.y1 + from.dy;
   const x2 = edge.x2 + to.dx, y2 = edge.y2 + to.dy;
+  const d = edgePath(x1, y1, x2, y2, lineStyle);
+  // A wide, invisible copy of the line: click it to pick the group, double-click to write on it.
+  if (hit) return <path className="edge-hit" data-node-id={edge.from} d={d} />;
+  return <path className={`edge edge-${edge.kind}`} d={d} />;
+}
+
+function EdgeLabel({ id, kind, x, y, text, own, editing, selected, editor }: {
+  id: string; kind: Edge['kind']; x: number; y: number; text: string; own: boolean; editing: boolean; selected: boolean; editor: Editor;
+}) {
+  const done = useRef(false);
+  if (editing) {
+    done.current = false;
+    const finish = (value: string | null) => {
+      if (done.current) return;
+      done.current = true;
+      editor.finishLineLabel(value);
+    };
+    return (
+      <div className={`edge-label edge-label-${kind} editing`} style={{ left: x, top: y }}>
+        <input
+          autoFocus
+          defaultValue={own ? text : ''}
+          placeholder={kind === 'objection' ? 'But' : 'Because'}
+          maxLength={60}
+          size={Math.max(8, (own ? text.length : 7) + 2)}
+          aria-label="Words on the line"
+          onPointerDown={(e) => e.stopPropagation()}
+          onDoubleClick={(e) => e.stopPropagation()}
+          onInput={(e) => ((e.target as HTMLInputElement).size = Math.max(8, (e.target as HTMLInputElement).value.length + 2))}
+          onKeyDown={(e) => {
+            e.stopPropagation();
+            if (e.key === 'Enter') finish((e.target as HTMLInputElement).value);
+            else if (e.key === 'Escape') finish(null);
+          }}
+          onBlur={(e) => finish(e.target.value)}
+        />
+      </div>
+    );
+  }
   return (
-    <path
-      className={`edge edge-${edge.kind}`}
-      d={edgePath(x1, y1, x2, y2, lineStyle)}
-    />
+    <div
+      data-node-id={id}
+      className={`edge-label edge-label-${kind}${own ? '' : ' auto'}${selected ? ' selected' : ''}`}
+      style={{ left: x, top: y }}
+      title="Click to write on the line"
+      // One click writes on it: the box toolbar would cover the second click of a double-click.
+      onPointerDown={(e) => {
+        if (e.button !== 0 || editor.readOnly) return;
+        e.stopPropagation();
+        e.preventDefault();
+        editor.editLineLabel(id);
+      }}
+    >
+      {text}
+    </div>
   );
 }
 
@@ -397,11 +476,43 @@ function ClaimView({ box, node, theme, label, match, offset, selected, dropTarge
   ].filter(Boolean).join(' ');
   const { maxWidth: _max, ...text } = textStyle(node, theme);
   const placeholder = node.kind === 'sticky' ? 'Note' : 'Type a claim';
+  const [resize, setResize] = useState<{ w: number; h: number } | null>(null);
+  const canResize = node.kind === 'sticky' && selected && !editor.readOnly && !editing;
+  const startResize = (e: import('react').PointerEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const el = e.currentTarget as HTMLElement;
+    el.setPointerCapture(e.pointerId);
+    const x0 = e.clientX, y0 = e.clientY, w0 = box.w, h0 = box.h, zoom = editor.view.zoom;
+    const size = (ev: PointerEvent) => ({
+      w: Math.min(STICKY.max, Math.max(STICKY.min, w0 + (ev.clientX - x0) / zoom)),
+      h: Math.min(STICKY.max, Math.max(STICKY.min, h0 + (ev.clientY - y0) / zoom)),
+    });
+    const move = (ev: PointerEvent) => setResize(size(ev));
+    const up = (ev: PointerEvent) => {
+      el.removeEventListener('pointermove', move);
+      el.removeEventListener('pointerup', up);
+      el.removeEventListener('pointercancel', up);
+      const s = size(ev);
+      setResize(null);
+      if (Math.abs(s.w - w0) > 1 || Math.abs(s.h - h0) > 1) editor.resizeSticky(node.id, s.w, s.h);
+    };
+    el.addEventListener('pointermove', move);
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', up);
+  };
   return (
     <div
       data-node-id={box.id}
       className={cls}
-      style={{ left: box.x + offset.dx, top: box.y + offset.dy, width: box.w, minHeight: box.h, ...boxStyle(node, theme) }}
+      style={{
+        left: box.x + offset.dx,
+        top: box.y + offset.dy,
+        width: resize?.w ?? box.w,
+        minHeight: resize?.h ?? box.h,
+        ...(node.kind === 'sticky' ? { height: resize?.h ?? box.h } : {}),
+        ...boxStyle(node, theme),
+      }}
       role="treeitem"
       aria-selected={selected}
     >
@@ -413,6 +524,9 @@ function ClaimView({ box, node, theme, label, match, offset, selected, dropTarge
         </div>
       )}
       {label ? <span className="node-label">{label}</span> : null}
+      {canResize ? (
+        <span className="sticky-resize" title="Drag to resize" aria-label="Resize note" onPointerDown={startResize} />
+      ) : null}
       {node.note || node.link ? (
         <span className="node-badges">
           {node.note ? (
@@ -434,7 +548,7 @@ function ClaimView({ box, node, theme, label, match, offset, selected, dropTarge
             <button key={emoji} className={`reaction-chip${authors.includes(me) ? ' mine' : ''}`} title={authors.join(', ')}
               aria-label={`${emoji} ${authors.length}`} disabled={editor.readOnly}
               onClick={() => editor.toggleReaction(node.id, emoji)}>
-              {emoji}{authors.length > 1 ? <small>{authors.length}</small> : null}
+              <Emoji e={emoji} size={15} />{authors.length > 1 ? <small>{authors.length}</small> : null}
             </button>
           ))}
           {comments ? (

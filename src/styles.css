@@ -2566,3 +2566,159 @@ legend {
   flex: 1 0 100%;
   margin-top: 0;
 }
+
+/* ------------------------------------------------------------ sticky notes: square paper */
+
+.sticky {
+  align-items: center;
+  border: 0;
+  border-radius: 2px 2px 3px 18px / 2px 2px 3px 6px;
+  background: linear-gradient(176deg, #fff7b8 0%, #fff19a 55%, #fbe77e 100%);
+  box-shadow:
+    0 1px 1px rgba(80, 60, 0, 0.12),
+    0 10px 14px -8px rgba(60, 45, 0, 0.45);
+  transform: rotate(-1deg);
+}
+
+/* A strip at the top, where real notes are glued, is a shade darker. */
+.sticky::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 14%;
+  background: rgba(150, 120, 0, 0.06);
+  pointer-events: none;
+}
+
+.sticky .claim-text {
+  width: 100%;
+  max-height: 100%;
+}
+
+.sticky-resize {
+  position: absolute;
+  right: -7px;
+  bottom: -7px;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  background: var(--surface);
+  border: 2px solid var(--brand);
+  cursor: nwse-resize;
+  z-index: 3;
+  touch-action: none;
+}
+
+/* Words written on the line between a claim and its reason or objection */
+.edge-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 12;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+
+.edge-label {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--ink);
+  font: 400 14px/1.35 'Inter', 'Vazirmatn', system-ui, sans-serif;
+  white-space: nowrap;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  user-select: none;
+  z-index: 1;
+}
+
+.edge-label.auto {
+  color: var(--ink-2, var(--ink));
+}
+
+.edge-label.selected {
+  box-shadow: 0 0 0 1.5px var(--brand);
+}
+
+.edge-label.editing {
+  padding: 0;
+  background: none;
+}
+
+.edge-label input {
+  font: inherit;
+  text-align: center;
+  color: var(--ink);
+  background: var(--surface, var(--bg));
+  border: 1.5px solid var(--brand);
+  border-radius: 6px;
+  padding: 1px 6px;
+  outline: none;
+}
+
+.edge-label-objection.editing input {
+  border-color: var(--objection-line, var(--objection));
+}
+
+/* Bundled emoji art: same size and baseline everywhere */
+img.emoji {
+  display: block;
+  flex: none;
+  pointer-events: none;
+  user-select: none;
+}
+
+.popover.reactions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dock-emoji img.emoji,
+.tb-item img.emoji {
+  margin: auto;
+}
+
+.reaction-chip {
+  gap: 4px;
+  padding: 0 6px 0 5px;
+}
+
+/* Reactions and comments sit in one small pill on the bottom-right corner, clear of the
+   number badge and the note/link badges along the top edge. */
+.node-social {
+  top: auto;
+  left: auto;
+  bottom: -12px;
+  right: 8px;
+  gap: 0;
+  height: 22px;
+  padding: 0 2px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.node-social .reaction-chip,
+.node-social .comment-chip {
+  height: 18px;
+  padding: 0 3px;
+  gap: 2px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+}
+
+.node-social .reaction-chip.mine {
+  background: var(--brand-soft);
+}
+
+.node-social .reaction-chip:not(:disabled):hover,
+.node-social .comment-chip:hover {
+  background: var(--surface-2);
+}

@@ -1,4 +1,4 @@
-import { MapNode, isGroup } from '../model/types';
+import { MapNode, Theme, isGroup, lineLabel } from '../model/types';
 
 export interface Size {
   w: number;
@@ -53,9 +53,10 @@ export const LAYOUT = {
  * group box. Widths are computed bottom-up, positions top-down, then manual
  * nudges (dx/dy) are applied to whole subtrees.
  */
-export function layoutMap(nodes: MapNode[], measure: Measure, density: 'compact' | 'comfortable' = 'compact'): LayoutResult {
+export function layoutMap(nodes: MapNode[], measure: Measure, density: 'compact' | 'comfortable' = 'compact', lineLabels = false): LayoutResult {
   const k = density === 'comfortable' ? 1.5 : 1;
-  const vGap = LAYOUT.vGap * k;
+  // Words on the lines need a little more room between a claim and its reasons.
+  const vGap = LAYOUT.vGap * k + (lineLabels ? 18 : 0);
   const premiseGap = LAYOUT.premiseGap * k;
   const groupGap = LAYOUT.groupGap * k;
   const { groupPad, groupLabel, groupMinWidth } = LAYOUT;
@@ -236,6 +237,67 @@ export function layoutMap(nodes: MapNode[], measure: Measure, density: 'compact'
     : { x: 0, y: 0, w: 0, h: 0 };
 
   return { boxes, edges, bounds };
+}
+
+/** Where the words on a line go: a quarter of the way up from the group, so neighbours don't collide. */
+export function labelPoint(x1: number, y1: number, x2: number, y2: number, style: 'curved' | 'straight' | 'elbow', t = 0.3): { x: number; y: number } {
+  const my = (y1 + y2) / 2;
+  if (style === 'straight') return { x: x1 + (x2 - x1) * t, y: y1 + (y2 - y1) * t };
+  if (style === 'elbow') return { x: x1, y: y1 + (my - y1) * Math.min(1, t * 2) };
+  // Cubic from (x1,y1) via (x1,my), (x2,my) to (x2,y2)
+  const u = 1 - t;
+  const b = (a0: number, a1: number, a2: number, a3: number) => u * u * u * a0 + 3 * u * u * t * a1 + 3 * u * t * t * a2 + t * t * t * a3;
+  return { x: b(x1, x1, x2, x2), y: b(y1, my, my, y2) };
+}
+
+export interface LineLabel {
+  /** The reason or objection the line comes from. */
+  id: string;
+  kind: Edge['kind'];
+  text: string;
+  /** Written by someone, rather than the automatic Because / But. */
+  own: boolean;
+  x: number;
+  y: number;
+}
+
+/**
+ * The words on every line, placed near the group end and pushed apart where lines to the
+ * same claim run close together. `width` measures text; `offset` moves dragged boxes.
+ */
+export function placeLineLabels(
+  layout: LayoutResult,
+  nodes: Map<string, MapNode>,
+  theme: Pick<Theme, 'lineLabels' | 'lineStyle'>,
+  width: (text: string) => number,
+  offset: (id: string) => { dx: number; dy: number } = () => ({ dx: 0, dy: 0 }),
+  include?: string,
+): LineLabel[] {
+  const byTarget = new Map<string, (LineLabel & { w: number })[]>();
+  for (const e of layout.edges) {
+    const g = nodes.get(e.from);
+    if (!g) continue;
+    const text = lineLabel(g, theme);
+    if (!text && e.from !== include) continue;
+    const a = offset(e.from), z = offset(e.to);
+    const p = labelPoint(e.x1 + a.dx, e.y1 + a.dy, e.x2 + z.dx, e.y2 + z.dy, theme.lineStyle);
+    const list = byTarget.get(e.to) ?? [];
+    list.push({ id: e.from, kind: e.kind, text, own: !!g.text.trim(), x: p.x, y: p.y, w: Math.max(width(text || 'Because'), 40) + 8 });
+    byTarget.set(e.to, list);
+  }
+  const out: LineLabel[] = [];
+  for (const list of byTarget.values()) {
+    list.sort((a, b) => a.x - b.x);
+    // Push right, then centre the whole row back over where it started.
+    const before = list.reduce((s, l) => s + l.x, 0);
+    for (let i = 1; i < list.length; i++) {
+      const min = list[i - 1].x + (list[i - 1].w + list[i].w) / 2;
+      if (list[i].x < min) list[i].x = min;
+    }
+    const shift = (before - list.reduce((sum, l) => sum + l.x, 0)) / list.length;
+    for (const { w: _w, ...l } of list) out.push({ ...l, x: l.x + shift });
+  }
+  return out;
 }
 
 /** Topmost box under a point (claims win over the group boxes behind them). */

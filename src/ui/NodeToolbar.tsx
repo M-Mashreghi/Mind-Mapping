@@ -3,6 +3,7 @@ import { Editor } from '../editor';
 import { FontSize, REACTIONS, isTextNode } from '../model/types';
 import { FONT_SIZES, PALETTE } from '../theme';
 import { useDismiss } from './Menu';
+import { Emoji } from './Emoji';
 
 type Pop = 'fill' | 'border' | 'color' | 'size' | 'react' | null;
 
@@ -113,11 +114,11 @@ export function NodeToolbar({ editor, onMore }: { editor: Editor; onMore: (x: nu
       ) : null}
       {text ? (
         <div className="tb-item">
-          <button title="React" aria-label="React" onClick={() => setPop(pop === 'react' ? null : 'react')}>☺</button>
+          <button title="React" aria-label="React" onClick={() => setPop(pop === 'react' ? null : 'react')}><Emoji e="😊" size={16} /></button>
           {pop === 'react' ? (
             <div className="popover reactions" role="listbox" aria-label="Reactions">
               {REACTIONS.map((r) => (
-                <button key={r} onClick={() => { editor.toggleReaction(node.id, r); close(); }}>{r}</button>
+                <button key={r} title={r} aria-label={r} onClick={() => { editor.toggleReaction(node.id, r); close(); }}><Emoji e={r} size={22} /></button>
               ))}
               <button className="reaction-comment" onClick={() => { editor.toggleNotes(true); close(); }}>Comment…</button>
             </div>

@@ -57,6 +57,8 @@ export class Editor {
   doc: MapDoc;
   selection: string[] = [];
   editing: { id: string; initial?: string } | null = null;
+  /** The reason or objection whose line label is being written. */
+  labelEditing: string | null = null;
   view: View = { zoom: 1, x: 0, y: 0 };
   viewport = { w: 1000, h: 700 };
   showGrid = true;
@@ -189,7 +191,7 @@ export class Editor {
   get layout(): LayoutResult {
     if (!this.layoutCache || this.layoutVersion === -1) {
       const theme = this.doc.theme;
-      this.layoutCache = layoutMap(this.doc.all(), (n) => this.measure(n, theme), theme.density);
+      this.layoutCache = layoutMap(this.doc.all(), (n) => this.measure(n, theme), theme.density, theme.lineLabels || this.doc.all().some((n) => (n.kind === 'reason' || n.kind === 'objection') && !!n.text.trim()));
       this.layoutVersion = this.version;
     }
     return this.layoutCache;
@@ -580,6 +582,27 @@ export class Editor {
     this.selection = [target];
     this.editing = { id: target, initial };
     this.scrollIntoView(target);
+    this.emit();
+  }
+
+  /** Write on the line between a reason or objection and its claim (a premise picks its group). */
+  editLineLabel(id?: string): void {
+    if (this.readOnly) return this.flashReadOnly();
+    let target = this.doc.get(id ?? this.primary ?? '');
+    if (target?.kind === 'claim' && target.parent) target = this.doc.get(target.parent);
+    if (!target || !isGroup(target)) return;
+    this.commitEditing();
+    this.selection = [target.id];
+    this.labelEditing = target.id;
+    this.emit();
+  }
+
+  finishLineLabel(text: string | null): void {
+    const id = this.labelEditing;
+    if (!id) return;
+    this.labelEditing = null;
+    if (text !== null && this.doc.has(id)) this.doc.setText(id, text.replace(/\s+/g, ' ').trim().slice(0, 60));
+    this.doc.undo.stopCapturing();
     this.emit();
   }
 
@@ -1165,6 +1188,14 @@ export class Editor {
   }
 
   // ------------------------------------------------------------ collaboration
+
+  /** Resize a sticky note (from its bottom-right corner). */
+  resizeSticky(id: string, w: number, h: number): void {
+    if (this.readOnly) return this.flashReadOnly();
+    this.doc.undo.stopCapturing();
+    this.doc.resizeSticky(id, w, h);
+    this.doc.undo.stopCapturing();
+  }
 
   setTool(tool: 'select' | 'pan'): void {
     this.tool = tool;

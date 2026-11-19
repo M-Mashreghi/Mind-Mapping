@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import { FontSize, MapNode, Theme } from './model/types';
+import { FontSize, MapNode, Theme, stickyW } from './model/types';
 
 import '@fontsource/inter/400.css';
 import '@fontsource/inter/400-italic.css';
@@ -50,8 +50,8 @@ export function textStyle(node: MapNode, theme: Theme): CSSProperties {
     fontStyle: s.italic ? 'italic' : 'normal',
     textDecoration: [s.underline ? 'underline' : '', s.strike ? 'line-through' : ''].filter(Boolean).join(' ') || 'none',
     textAlign: s.align ?? 'center',
-    maxWidth: node.kind === 'sticky' ? 220 : size.maxWidth,
-    padding: isRoot ? `${Math.round(px * 0.9)}px ${Math.round(px * 1.6)}px` : `${Math.round(px * 0.65)}px ${Math.round(px * 0.85)}px`,
+    maxWidth: sticky ? stickyW(node) : size.maxWidth,
+    padding: sticky ? `${Math.round(px * 0.9)}px ${Math.round(px * 1.0)}px` : isRoot ? `${Math.round(px * 0.9)}px ${Math.round(px * 1.6)}px` : `${Math.round(px * 0.65)}px ${Math.round(px * 0.85)}px`,
   };
 }
 
