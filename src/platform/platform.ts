@@ -21,6 +21,7 @@ export interface DesktopBridge {
   toggleFullScreen(): void;
   onCloseRequest(handler: () => void): void;
   onOpenPath(handler: (path: string) => void): void;
+  onMenuEdit?(handler: (action: string) => void): void;
   hostStart(title: string, hostName?: string): Promise<HostInfo>;
   hostStop(): Promise<void>;
   lanSetMe(me: LanMe): Promise<void>;

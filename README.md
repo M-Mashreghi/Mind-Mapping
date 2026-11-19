@@ -4,7 +4,7 @@ Free, open-source argument mapping for the desktop. Lay out a claim, the reasons
 support it and the objections against it, with co-premises, hidden assumptions and
 nested rebuttals, then share the map with people on your network.
 
-> Status: early development. The editor, styling, notes, export, Windows/Linux
+> Status: early development. The editor, styling, notes, export, Windows/Linux/macOS
 > installers, live LAN collaboration and Google Drive are in place. See the
 > [roadmap](docs/ROADMAP.md) for what comes next: presenting, evaluating arguments and more.
 
@@ -14,8 +14,15 @@ Installers are built by GitHub Actions for every release:
 
 - **Windows:** `Argument-Mapper-Setup-<version>.exe` (installer) or `Argument-Mapper-Portable-<version>.exe` (no install needed)
 - **Linux:** `Argument-Mapper-<version>-x86_64.AppImage` (make it executable and run it) or `Argument-Mapper-<version>-amd64.deb` (`sudo apt install ./Argument-Mapper-*.deb`)
+- **macOS:** `Argument-Mapper-<version>-mac-arm64.dmg` (Apple Silicon: M1 and later) or `Argument-Mapper-<version>-mac-x64.dmg` (Intel). Open it and drag the app to Applications.
 
 Windows may show a SmartScreen warning the first time because the app is not code-signed; choose **More info → Run anyway**.
+
+macOS says the app "cannot be opened" the first time because it isn't signed with a paid Apple
+certificate. Open **System Settings → Privacy & Security**, scroll down and choose **Open Anyway**
+(on older macOS you can instead right-click the app and choose **Open**). If macOS says the app
+"is damaged", run `xattr -cr "/Applications/Argument Mapper.app"` in Terminal once. When you
+first share or join a map, allow **Local Network** access so others can be found.
 
 `.amap` files open in the app when you double-click them after installing.
 
