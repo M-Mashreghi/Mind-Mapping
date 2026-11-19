@@ -25,6 +25,8 @@ export interface DesktopBridge {
   hostStop(): Promise<void>;
   hostStatus(): Promise<(HostInfo & { peers: number }) | null>;
   discoverHosts(): Promise<FoundHost[]>;
+  hostAction(method: string, ...args: unknown[]): Promise<void>;
+  onHostState(handler: (s: HostState) => void): void;
   drive(method: string, ...args: unknown[]): Promise<{ ok: boolean; value?: unknown; error?: string }>;
   confirmClose(): void;
   openExternal(url: string): void;
@@ -34,9 +36,47 @@ export interface DesktopBridge {
 
 export interface HostInfo {
   port: number;
-  editCode: string;
-  viewCode: string;
   addresses: string[];
+  /** The host's own pass to its server. */
+  hostTicket: string;
+}
+
+export type Role = 'edit' | 'view';
+
+/** Someone asking to join the map the host is sharing. */
+export interface JoinRequest {
+  id: string;
+  deviceId: string;
+  name: string;
+  color: string;
+  want: Role;
+  at: number;
+}
+
+export interface Guest {
+  id: string;
+  deviceId: string;
+  name: string;
+  color: string;
+  role: Role;
+  online: boolean;
+  trusted: boolean;
+}
+
+export interface HostState {
+  requests: JoinRequest[];
+  guests: Guest[];
+  trusted: Array<{ deviceId: string; name: string; role: Role; since: string }>;
+}
+
+/** What the host can do about the people asking to join or already in. */
+export interface HostControls {
+  approve(requestId: string, role: Role, always: boolean): Promise<void>;
+  deny(requestId: string): Promise<void>;
+  setRole(guestId: string, role: Role): Promise<void>;
+  remove(guestId: string): Promise<void>;
+  forget(deviceId: string): Promise<void>;
+  onState(handler: (s: HostState) => void): void;
 }
 
 export interface DriveFile {
@@ -118,6 +158,7 @@ export interface Platform {
   hostStart(title: string): Promise<HostInfo>;
   hostStop(): Promise<void>;
   discoverHosts(): Promise<FoundHost[]>;
+  host?: HostControls;
   drive?: DriveApi;
 }
 
@@ -139,6 +180,14 @@ function desktopPlatform(bridge: DesktopBridge): Platform {
     hostStart: (title) => bridge.hostStart(title),
     hostStop: () => bridge.hostStop(),
     discoverHosts: () => bridge.discoverHosts(),
+    host: {
+      approve: (id, role, always) => bridge.hostAction('approve', id, role, always),
+      deny: (id) => bridge.hostAction('deny', id),
+      setRole: (id, role) => bridge.hostAction('setRole', id, role),
+      remove: (id) => bridge.hostAction('remove', id),
+      forget: (deviceId) => bridge.hostAction('forget', deviceId),
+      onState: (h) => bridge.onHostState(h),
+    },
     drive: driveApi(bridge),
   };
 }

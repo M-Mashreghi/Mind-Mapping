@@ -11,7 +11,7 @@ import { Dock } from './ui/Dock';
 import { NotesPanel } from './ui/NotesPanel';
 import { FindBar } from './ui/FindBar';
 import { ThemePanel } from './ui/ThemePanel';
-import { ShareDialog } from './ui/ShareDialog';
+import { ShareDialog, RequestRow } from './ui/ShareDialog';
 import { DriveDialog } from './ui/DriveDialog';
 import { isClaim } from './model/types';
 
@@ -199,6 +199,13 @@ export function App() {
       {dialog === 'history' ? <HistoryDialog editor={editor} onClose={() => setDialog(null)} /> : null}
       {dialog === 'drive' ? <DriveDialog editor={editor} onClose={() => setDialog(null)} /> : null}
       {dialog === 'share' ? <ShareDialog editor={editor} onClose={() => setDialog(null)} /> : null}
+      {dialog !== 'share' && editor.collab?.role === 'host' && editor.hostState?.requests.length ? (
+        <aside className="join-popups" aria-live="polite" aria-label="People asking to join">
+          <ul>
+            {editor.hostState.requests.map((r) => <RequestRow key={r.id} editor={editor} request={r} />)}
+          </ul>
+        </aside>
+      ) : null}
     </div>
   );
 }

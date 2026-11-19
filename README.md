@@ -77,15 +77,23 @@ Without both values, Drive is simply turned off.
 No internet or account is needed. Everyone must be on the same Wi-Fi or office network.
 
 1. The host opens the map in the desktop app and chooses **Share** (top right) → **Start sharing**.
-   The app shows an address such as `192.168.1.20:47821` and two codes: one that can edit and
-   one that can only view.
+   The app shows an address such as `192.168.1.20:47821` and a link to copy.
 2. Others either
    - open the desktop app, choose **Share**, pick the map from the list of maps found on the
-     network (or type the address) and enter the code, or
-   - open the link the host copied, for example `http://192.168.1.20:47821/?join=KSKE26`, in
-     any browser. Nothing has to be installed.
-3. Everyone sees each other's changes, mouse pointers and selected boxes as they happen. Select a
-   box and use ☺ in its toolbar to react, or open **Notes** (N) to read and write comments.
+     network (or type the address), or
+   - open the link the host copied, for example `http://192.168.1.20:47821/?join`, in any
+     browser. Nothing has to be installed.
+
+   They choose **Edit** or **Only view** and press **Ask to join**.
+3. The host sees who is asking and decides: **Allow this time** (only while this map is being
+   shared), **Always allow** (this person gets in without asking from now on), or **Don't allow**.
+   The host can also turn an edit request into view only.
+4. Under **Share**, the host sees everyone who is in, can switch each person between
+   **Can edit** and **View only** at any time, **Remove** someone, and stop always allowing
+   someone.
+5. Everyone sees each other's changes, selected boxes and mouse pointers as they happen. Each
+   person's pointer has their own colour with their name next to it. Select a box and use ☺ in
+   its toolbar to react, or open **Notes** (N) to read and write comments.
 
 The map stays a file on the host's computer and keeps saving there. When a guest leaves, they
 keep a copy they can save. If the connection drops, changes are kept and sync again when it's

@@ -21,6 +21,15 @@ contextBridge.exposeInMainWorld('argmapDesktop', {
   hostStop: () => ipcRenderer.invoke('collab:stop'),
   hostStatus: () => ipcRenderer.invoke('collab:status'),
   discoverHosts: () => ipcRenderer.invoke('collab:discover'),
+  hostAction: (method: string, ...args: unknown[]) => {
+    const allowed = ['approve', 'deny', 'setRole', 'remove', 'forget'];
+    if (!allowed.includes(method)) return Promise.reject(new Error('Unknown sharing call'));
+    return ipcRenderer.invoke(`collab:${method}`, ...args);
+  },
+  onHostState: (handler: (s: unknown) => void) => {
+    ipcRenderer.removeAllListeners('collab:state');
+    ipcRenderer.on('collab:state', (_e, s) => handler(s));
+  },
   drive: (method: string, ...args: unknown[]) => {
     const allowed = ['status', 'signIn', 'cancelSignIn', 'signOut', 'list', 'open', 'save'];
     if (!allowed.includes(method)) return Promise.reject(new Error('Unknown Drive call'));

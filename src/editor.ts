@@ -3,8 +3,8 @@ import { MapFile, MapNode, NodeStyle, Snapshot, Theme, FontSize, isClaim, isGrou
 import { importMindMup } from './model/mindmup';
 import { buildSvg, readColors, svgToPng } from './export/svg';
 import { toMarkdown, toPlainText } from './export/outline';
-import { CollabSession, Peer, PeerUser, checkCode, loadUser, saveUser } from './collab/session';
-import type { HostInfo } from './platform/platform';
+import { CollabSession, ControlMessage, Peer, PeerUser, Role, loadUser, requestAccess, saveUser } from './collab/session';
+import type { HostInfo, HostState } from './platform/platform';
 
 export interface CollabState {
   role: 'host' | 'guest';
@@ -76,7 +76,11 @@ export class Editor {
   user: PeerUser | null = loadUser();
   showComments = true;
   /** Set when the page was opened from a share link (browser guests). */
-  pendingJoin: { address: string; code: string } | null = null;
+  pendingJoin: { address: string } | null = null;
+  /** A join request waiting for the host's answer. */
+  joining: { address: string; want: Role; waiting: boolean; abort: AbortController } | null = null;
+  /** While hosting: who is asking to join, who is in, and who is always allowed. */
+  hostState: HostState | null = null;
 
   private measure: (node: MapNode, theme: Theme) => Size;
   private styleClip: NodeStyle | undefined;
@@ -115,11 +119,14 @@ export class Editor {
       this.recent = r;
       this.emit();
     });
-    // Opened from a share link: http://host:port/?join=CODE
+    // Opened from a share link: http://host:port/?join
     if (platform.kind === 'web' && typeof location !== 'undefined') {
-      const code = new URLSearchParams(location.search).get('join');
-      if (code) this.pendingJoin = { address: location.host, code };
+      if (new URLSearchParams(location.search).has('join')) this.pendingJoin = { address: location.host };
     }
+    platform.host?.onState((s) => {
+      this.hostState = s;
+      this.emit();
+    });
   }
 
   // ------------------------------------------------------------ store plumbing
@@ -1178,34 +1185,72 @@ export class Editor {
     if (!this.user) throw new Error('Enter your name first.');
     if (this.collab) return;
     const host = await platform.hostStart(this.doc.title);
-    const session = new CollabSession(`ws://127.0.0.1:${host.port}`, host.editCode, this.doc.ydoc, this.user, () => this.emit());
+    const session = new CollabSession(`ws://127.0.0.1:${host.port}`, host.hostTicket, this.doc.ydoc, this.user, () => this.emit());
     const addr = host.addresses[0] ?? '127.0.0.1';
     this.collab = { role: 'host', readOnly: false, session, host, httpBase: `http://${addr}:${host.port}` };
     this.emit();
   }
 
-  /** Join a map someone is sharing. */
-  async join(address: string, code: string): Promise<void> {
+  /** The host lets someone in (for this sharing session, or always), or turns them away. */
+  async answerRequest(id: string, answer: 'once' | 'always' | 'deny', role: Role): Promise<void> {
+    const h = platform.host;
+    if (!h) return;
+    if (answer === 'deny') await h.deny(id);
+    else await h.approve(id, role, answer === 'always');
+  }
+
+  /**
+   * Ask to join a map someone is sharing, as an editor or a viewer, and wait until
+   * the host lets us in. Resolves false if we stopped waiting.
+   */
+  async join(address: string, want: Role = 'edit'): Promise<boolean> {
     if (!this.user) throw new Error('Enter your name first.');
+    if (this.joining) return false;
     const { httpBase, wsBase } = parseAddress(address);
-    const cleanCode = code.trim().toUpperCase();
-    const role = await checkCode(httpBase, cleanCode);
-    if (!(await this.confirmDiscard())) return;
+    const abort = new AbortController();
+    this.joining = { address, want, waiting: false, abort };
+    this.emit();
+    let admitted;
+    try {
+      admitted = await requestAccess(httpBase, { ...this.user, want }, {
+        signal: abort.signal,
+        onWaiting: () => {
+          if (this.joining) this.joining.waiting = true;
+          this.emit();
+        },
+      });
+    } catch (e) {
+      if ((e as Error).name === 'AbortError') return false;
+      throw e;
+    } finally {
+      this.joining = null;
+      this.emit();
+    }
+    if (!(await this.confirmDiscard())) return false;
     await this.leave(false);
     this.clearDraft();
     const doc = new MapDoc();
     this.replaceDoc(doc);
+    // The host may give us another colour so everyone's cursor looks different.
+    const me = { ...this.user, color: admitted.color };
     let wasConnected = false;
-    const session = new CollabSession(wsBase, cleanCode, doc.ydoc, this.user, () => {
-      if (session.status === 'connected' && !wasConnected) {
-        wasConnected = true;
-      } else if (session.status !== 'connected' && wasConnected && this.collab?.session === session) {
-        wasConnected = false;
-        this.flash('Lost the connection to the host. Your changes are kept and will sync when it is back.', 'error');
-      }
-      this.emit();
-    });
-    this.collab = { role: 'guest', readOnly: role === 'view', session, httpBase };
+    const session: CollabSession = new CollabSession(
+      wsBase,
+      admitted.ticket,
+      doc.ydoc,
+      me,
+      () => {
+        if (session.status === 'connected' && !wasConnected) {
+          wasConnected = true;
+        } else if (session.status !== 'connected' && wasConnected && this.collab?.session === session) {
+          wasConnected = false;
+          this.flash('Lost the connection to the host. Your changes are kept and will sync when it is back.', 'error');
+        }
+        this.emit();
+      },
+      (msg) => this.onHostMessage(session, msg),
+    );
+    this.collab = { role: 'guest', readOnly: admitted.role === 'view', session, httpBase };
     this.file = { name: 'Shared map', dirty: false };
     platform.setDirty(false);
     this.pendingJoin = null;
@@ -1219,6 +1264,27 @@ export class Editor {
       this.updateWindowTitle();
     };
     session.provider.on('sync', fit);
+    return true;
+  }
+
+  /** Stop waiting for the host to answer a join request. */
+  cancelJoin(): void {
+    this.joining?.abort.abort();
+  }
+
+  private onHostMessage(session: CollabSession, msg: ControlMessage): void {
+    const c = this.collab;
+    if (!c || c.session !== session) return;
+    if (msg.type === 'removed') {
+      void this.leave(false).then(() => this.flash('The host removed you from the shared map. Your copy is still here.', 'error'));
+    } else if (msg.type === 'role') {
+      const readOnly = msg.role === 'view';
+      if (readOnly === c.readOnly) return;
+      c.readOnly = readOnly;
+      if (readOnly) this.commitEditing();
+      this.flash(readOnly ? 'The host changed your access to view only.' : 'The host lets you edit this map now.');
+      this.emit();
+    }
   }
 
   /** Stop sharing (host) or leave (guest). A guest keeps a local, unsaved copy. */
@@ -1228,6 +1294,7 @@ export class Editor {
     this.collab = null;
     c.session.destroy();
     if (c.role === 'host') {
+      this.hostState = null;
       await platform.hostStop();
       if (notify) this.flash('Stopped sharing.');
     } else {
