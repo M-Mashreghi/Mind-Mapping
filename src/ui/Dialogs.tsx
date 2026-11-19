@@ -1,9 +1,10 @@
 import { useCallback } from 'react';
 import { commands } from '../commands';
+import { Editor } from '../editor';
 import { useDismiss } from './Menu';
 import { Logo } from './Logo';
 
-function Dialog({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+export function Dialog({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   const close = useCallback(onClose, [onClose]);
   const ref = useDismiss(true, close);
   return (
@@ -20,9 +21,11 @@ function Dialog({ title, onClose, children }: { title: string; onClose: () => vo
 }
 
 const SECTIONS: { title: string; ids: string[] }[] = [
-  { title: 'Build the argument', ids: ['insert.reason', 'insert.objection', 'insert.child', 'insert.sibling', 'insert.parent', 'insert.root', 'edit.implicit', 'edit.detach'] },
+  { title: 'Build the argument', ids: ['insert.reason', 'insert.objection', 'insert.child', 'insert.sibling', 'insert.parent', 'insert.root', 'insert.sticky', 'insert.connection', 'edit.implicit', 'edit.detach'] },
+  { title: 'Text and style', ids: ['text.bold', 'text.italic', 'text.underline', 'text.strike', 'text.larger', 'text.smaller', 'text.bullets', 'text.numbers', 'edit.copyStyle', 'edit.pasteStyle'] },
   { title: 'Edit', ids: ['edit.text', 'edit.undo', 'edit.redo', 'edit.cut', 'edit.copy', 'edit.paste', 'edit.pasteRoot', 'edit.selectAll', 'edit.delete'] },
   { title: 'View', ids: ['view.fold', 'view.foldLevel', 'view.unfoldLevel', 'view.zoomIn', 'view.zoomOut', 'view.fit', 'view.recenter', 'view.fullscreen'] },
+  { title: 'Notes and search', ids: ['edit.note', 'view.notes', 'edit.link', 'edit.find'] },
   { title: 'File', ids: ['file.new', 'file.open', 'file.save', 'file.saveAs'] },
 ];
 
@@ -63,6 +66,32 @@ export function AboutDialog({ onClose }: { onClose: () => void }) {
         <p><strong>Argument Mapper</strong> {__APP_VERSION__}</p>
         <p>Free and open-source argument mapping. Released under the MIT licence.</p>
       </div>
+    </Dialog>
+  );
+}
+
+export function HistoryDialog({ editor, onClose }: { editor: Editor; onClose: () => void }) {
+  const list = editor.history;
+  return (
+    <Dialog title="Version history" onClose={onClose}>
+      {list.length ? (
+        <>
+          <p className="hint" style={{ marginTop: 0 }}>Each save keeps a version (one per 10 minutes of work, up to 25). Restoring can be undone.</p>
+          <ul className="history-list">
+            {list.map((h, i) => (
+              <li key={h.savedAt}>
+                <div>
+                  <strong>{new Date(h.savedAt).toLocaleString()}</strong>
+                  <span className="muted">{h.nodes.filter((n) => n.kind === 'claim').length} claims{i === 0 ? ' · latest save' : ''}</span>
+                </div>
+                <button onClick={() => { editor.restoreVersion(i); onClose(); }}>Restore</button>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : (
+        <p className="hint" style={{ marginTop: 0 }}>No saved versions yet. Versions are kept in the map file each time you save.</p>
+      )}
     </Dialog>
   );
 }

@@ -164,6 +164,11 @@ export function layoutMap(nodes: MapNode[], measure: Measure, density: 'compact'
   };
 
   for (const r of childrenOf(null)) {
+    if (r.kind === 'sticky') {
+      const size = sizeOf(r);
+      boxes.set(r.id, { id: r.id, kind: 'sticky', x: (r.x ?? 0) - size.w / 2, y: r.y ?? 0, w: size.w, h: size.h });
+      continue;
+    }
     if (r.kind !== 'claim') continue;
     const sw = claimWidth(r);
     placeClaim(r, (r.x ?? 0) - sw / 2, r.y ?? 0);
@@ -184,14 +189,14 @@ export function layoutMap(nodes: MapNode[], measure: Measure, density: 'compact'
 
   // ---- edges: from the top of each group to the bottom of its claim
   for (const b of boxes.values()) {
-    if (b.kind === 'claim') continue;
+    if (b.kind !== 'reason' && b.kind !== 'objection') continue;
     const g = byId.get(b.id)!;
     const target = boxes.get(g.parent!);
     if (!target) continue;
     edges.push({
       from: b.id,
       to: target.id,
-      kind: b.kind,
+      kind: b.kind as Edge['kind'],
       x1: b.x + b.w / 2,
       y1: b.y,
       x2: target.x + target.w / 2,
@@ -232,9 +237,69 @@ export function hitTest(layout: LayoutResult, x: number, y: number, exclude?: Se
   for (const b of layout.boxes.values()) {
     if (exclude?.has(b.id)) continue;
     if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) {
-      if (b.kind === 'claim') return b;
+      if (b.kind === 'claim' || b.kind === 'sticky') return b;
       hitGroup = b;
     }
   }
   return hitGroup;
+}
+
+/**
+ * Number labels for claims.
+ *  - level: "depth.index", counted left to right on each level (1.1, 2.1, 2.2 …)
+ *  - hierarchical: outline numbers (1, 1.1, 1.2, 1.1.1 …)
+ *  - sequential: 1, 2, 3 … top to bottom, left to right
+ */
+export function computeLabels(
+  nodes: MapNode[],
+  layout: LayoutResult,
+  mode: 'none' | 'level' | 'hierarchical' | 'sequential',
+): Map<string, string> {
+  const out = new Map<string, string>();
+  if (mode === 'none') return out;
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const visibleClaims = nodes.filter((n) => n.kind === 'claim' && layout.boxes.has(n.id));
+  const claimDepth = (n: MapNode): number => {
+    let d = 1;
+    let cur = n;
+    while (cur.parent) {
+      const g = byId.get(cur.parent);
+      const c = g && byId.get(g.parent ?? '');
+      if (!c) break;
+      cur = c;
+      d++;
+    }
+    return d;
+  };
+  const pos = (n: MapNode) => layout.boxes.get(n.id)!;
+  if (mode === 'sequential') {
+    [...visibleClaims]
+      .sort((a, b) => pos(a).y - pos(b).y || pos(a).x - pos(b).x)
+      .forEach((n, i) => out.set(n.id, String(i + 1)));
+    return out;
+  }
+  if (mode === 'level') {
+    const levels = new Map<number, MapNode[]>();
+    for (const n of visibleClaims) {
+      const d = claimDepth(n);
+      levels.set(d, [...(levels.get(d) ?? []), n]);
+    }
+    for (const [d, list] of levels) {
+      list.sort((a, b) => pos(a).x - pos(b).x).forEach((n, i) => out.set(n.id, `${d}.${i + 1}`));
+    }
+    return out;
+  }
+  // hierarchical
+  const kids = new Map<string | null, MapNode[]>();
+  for (const n of nodes) kids.set(n.parent, [...(kids.get(n.parent) ?? []), n]);
+  for (const l of kids.values()) l.sort((a, b) => a.order - b.order);
+  const claimChildren = (id: string) =>
+    (kids.get(id) ?? []).flatMap((g) => (g.kind === 'reason' || g.kind === 'objection' ? kids.get(g.id) ?? [] : []));
+  const walk = (n: MapNode, prefix: string) => {
+    if (!layout.boxes.has(n.id)) return;
+    out.set(n.id, prefix);
+    claimChildren(n.id).forEach((c, i) => walk(c, `${prefix}.${i + 1}`));
+  };
+  (kids.get(null) ?? []).filter((n) => n.kind === 'claim').forEach((r, i) => walk(r, String(i + 1)));
+  return out;
 }

@@ -1,7 +1,10 @@
 import { ClipNode, MapDoc, newMapFile } from './model/doc';
-import { MapFile, isClaim, isGroup } from './model/types';
+import { MapFile, MapNode, NodeStyle, Snapshot, Theme, FontSize, isClaim, isGroup, isTextNode } from './model/types';
+import { importMindMup } from './model/mindmup';
+import { buildSvg, readColors, svgToPng } from './export/svg';
+import { toMarkdown, toPlainText } from './export/outline';
 import { parseMapFile, serialize, FILE_EXTENSION } from './model/file';
-import { layoutMap, LayoutResult, Measure } from './layout/layout';
+import { layoutMap, LayoutResult, Size, computeLabels } from './layout/layout';
 import { platform } from './platform/platform';
 
 export interface View {
@@ -31,12 +34,20 @@ export class Editor {
   view: View = { zoom: 1, x: 0, y: 0 };
   viewport = { w: 1000, h: 700 };
   showGrid = true;
-  density: 'compact' | 'comfortable' = 'compact';
+  /** Id of the selected free-form connection, if any. */
+  selectedConnection: string | null = null;
+  notesOpen = false;
+  find: { query: string; matches: string[]; index: number } | null = null;
+  appearance: 'system' | 'light' | 'dark' = 'system';
   file: FileState = { name: 'Untitled argument.amap', dirty: false };
   message: { text: string; kind: 'info' | 'error' } | null = null;
   recent: string[] = [];
+  /** Saved versions of this map, newest first. */
+  history: Snapshot[] = [];
 
-  private measure: Measure;
+  private measure: (node: MapNode, theme: Theme) => Size;
+  private styleClip: NodeStyle | undefined;
+  private labelCache: { version: number; labels: Map<string, string> } | null = null;
   private listeners = new Set<() => void>();
   private version = 0;
   private layoutVersion = -1;
@@ -45,8 +56,14 @@ export class Editor {
   private autosaveTimer: ReturnType<typeof setTimeout> | null = null;
   private messageTimer: ReturnType<typeof setTimeout> | null = null;
 
-  constructor(measure: Measure) {
+  constructor(measure: (node: MapNode, theme: Theme) => Size) {
     this.measure = measure;
+    try {
+      const a = localStorage.getItem('argument-mapper:appearance');
+      if (a === 'light' || a === 'dark') this.appearance = a;
+    } catch {
+      /* ignore */
+    }
     this.doc = new MapDoc();
     this.attach();
     const draft = this.readDraft();
@@ -77,6 +94,8 @@ export class Editor {
       this.layoutVersion = -1;
       // Drop selection entries that no longer exist (e.g. after undo).
       this.selection = this.selection.filter((id) => this.doc.has(id));
+      if (this.selectedConnection && !this.doc.connections.has(this.selectedConnection)) this.selectedConnection = null;
+      if (this.find) this.runFind(this.find.query, false);
       if (this.editing && !this.doc.has(this.editing.id)) this.editing = null;
       this.emit();
     });
@@ -84,10 +103,20 @@ export class Editor {
 
   get layout(): LayoutResult {
     if (!this.layoutCache || this.layoutVersion === -1) {
-      this.layoutCache = layoutMap(this.doc.all(), this.measure, this.density);
+      const theme = this.doc.theme;
+      this.layoutCache = layoutMap(this.doc.all(), (n) => this.measure(n, theme), theme.density);
       this.layoutVersion = this.version;
     }
     return this.layoutCache;
+  }
+
+  /** Number labels for claims, per the theme's numbering mode. */
+  get labels(): Map<string, string> {
+    if (!this.labelCache || this.labelCache.version !== this.version) {
+      const layout = this.layout;
+      this.labelCache = { version: this.version, labels: computeLabels(this.doc.all(), layout, this.doc.theme.numbering) };
+    }
+    return this.labelCache.labels;
   }
 
   /** Call when fonts or styles change so sizes are measured again. */
@@ -161,6 +190,7 @@ export class Editor {
 
   loadFile(file: MapFile, state?: Partial<FileState>): void {
     this.doc.load(file);
+    this.history = file.history ?? [];
     this.selection = [];
     this.editing = null;
     this.file = { name: `${file.title}.${FILE_EXTENSION}`, dirty: false, ...state };
@@ -223,12 +253,24 @@ export class Editor {
   async save(asNew = false): Promise<boolean> {
     if (this.autosaveTimer) clearTimeout(this.autosaveTimer);
     this.commitEditing();
-    const content = serialize(this.doc.toFile());
+    const current = this.doc.toFile();
+    const snapshot: Snapshot = {
+      savedAt: new Date().toISOString(), title: current.title, nodes: current.nodes,
+      connections: current.connections, theme: current.theme,
+    };
+    // Keep one version per 10 minutes of work, so autosave doesn't flood the history.
+    const last = this.history[0];
+    const same = last && JSON.stringify([last.nodes, last.connections, last.theme, last.title]) ===
+      JSON.stringify([snapshot.nodes, snapshot.connections, snapshot.theme, snapshot.title]);
+    const recent = last && Date.now() - Date.parse(last.savedAt) < 10 * 60 * 1000;
+    const history = same ? this.history : recent ? [snapshot, ...this.history.slice(1)] : [snapshot, ...this.history].slice(0, 25);
+    const content = serialize({ ...current, history });
     try {
       const saved = asNew || !this.file.path
         ? await platform.saveAs(content, this.file.path ? this.file.name : this.suggestedName())
         : await platform.save(content, this.file.name, this.file.path);
       if (!saved) return false;
+      this.history = history;
       this.file = { name: saved.name, path: saved.path, dirty: false };
       platform.setDirty(false);
       this.clearDraft();
@@ -254,7 +296,15 @@ export class Editor {
 
   // ------------------------------------------------------------- selection
 
+  selectConnection(id: string | null): void {
+    this.commitEditing();
+    this.selectedConnection = id;
+    if (id) this.selection = [];
+    this.emit();
+  }
+
   select(ids: string[], additive = false): void {
+    this.selectedConnection = null;
     if (additive) {
       const set = new Set(this.selection);
       for (const id of ids) {
@@ -362,7 +412,7 @@ export class Editor {
 
   startEditing(id?: string, initial?: string): void {
     const target = id ?? this.primary;
-    if (!target || !isClaim(this.doc.get(target))) return;
+    if (!target || !isTextNode(this.doc.get(target))) return;
     this.selection = [target];
     this.editing = { id: target, initial };
     this.scrollIntoView(target);
@@ -475,6 +525,12 @@ export class Editor {
   }
 
   deleteSelection(): void {
+    if (this.selectedConnection) {
+      this.doc.removeConnection(this.selectedConnection);
+      this.selectedConnection = null;
+      this.emit();
+      return;
+    }
     if (!this.selection.length) return;
     this.commitEditing();
     // Pick something sensible to select afterwards: the parent claim of the first deleted node.
@@ -674,7 +730,264 @@ export class Editor {
   }
 
   setDensity(d: 'compact' | 'comfortable'): void {
-    this.density = d;
+    this.setTheme({ density: d });
+  }
+
+  setTheme(patch: Partial<Theme>): void {
+    this.doc.setTheme(patch);
     this.relayout();
+  }
+
+  setAppearance(a: 'system' | 'light' | 'dark'): void {
+    this.appearance = a;
+    try {
+      localStorage.setItem('argument-mapper:appearance', a);
+    } catch {
+      /* ignore */
+    }
+    this.emit();
+  }
+
+  // ----------------------------------------------------------------- styles
+
+  private styleTargets(): string[] {
+    return this.selection.filter((id) => this.doc.has(id));
+  }
+
+  setStyle(patch: NodeStyle): void {
+    const ids = this.styleTargets();
+    if (!ids.length) return this.flash('Select a box first.');
+    this.doc.setStyle(ids, patch);
+    this.relayout();
+  }
+
+  /** Toggle a boolean text style on the selection, based on the primary node. */
+  toggleStyle(key: 'bold' | 'italic' | 'underline' | 'strike'): void {
+    const cur = this.doc.get(this.primary)?.style?.[key];
+    this.setStyle({ [key]: !cur });
+  }
+
+  stepSize(dir: 1 | -1): void {
+    const order: FontSize[] = ['xs', 's', 'm', 'l', 'xl'];
+    const ids = this.styleTargets().filter((id) => isTextNode(this.doc.get(id)));
+    this.doc.transact(() => {
+      for (const id of ids) {
+        const cur = this.doc.get(id)?.style?.size ?? this.doc.theme.fontSize;
+        const next = order[Math.max(0, Math.min(order.length - 1, order.indexOf(cur) + dir))];
+        this.doc.setStyle([id], { size: next });
+      }
+    });
+    this.relayout();
+  }
+
+  copyStyle(): void {
+    const n = this.doc.get(this.primary);
+    if (!n) return;
+    this.styleClip = n.style ? { ...n.style } : undefined;
+    this.flash('Style copied.');
+  }
+
+  pasteStyle(): void {
+    this.doc.replaceStyle(this.styleTargets(), this.styleClip);
+    this.relayout();
+  }
+
+  resetStyle(): void {
+    this.doc.replaceStyle(this.styleTargets(), undefined);
+    this.relayout();
+  }
+
+  resetAllStyling(): void {
+    this.doc.resetAllStyles();
+    this.relayout();
+  }
+
+  /** Turn each line of the text into a bulleted or numbered list item (or back). */
+  toggleList(kind: 'bullet' | 'number'): void {
+    const ids = this.styleTargets().filter((id) => isTextNode(this.doc.get(id)));
+    const strip = (l: string) => l.replace(/^\s*(•|\d+[.)])\s+/, '');
+    this.doc.transact(() => {
+      for (const id of ids) {
+        const lines = (this.doc.get(id)!.text || '').split('\n');
+        const isBullet = lines.every((l) => /^\s*•\s/.test(l));
+        const isNumber = lines.every((l) => /^\s*\d+[.)]\s/.test(l));
+        let next: string[];
+        if ((kind === 'bullet' && isBullet) || (kind === 'number' && isNumber)) next = lines.map(strip);
+        else next = lines.map((l, i) => `${kind === 'bullet' ? '•' : `${i + 1}.`} ${strip(l)}`);
+        this.doc.setText(id, next.join('\n'));
+      }
+    });
+  }
+
+  // ---------------------------------------------------- notes, links, stickies
+
+  toggleNotes(open = !this.notesOpen): void {
+    this.notesOpen = open;
+    this.emit();
+    if (open) queueMicrotask(() => window.dispatchEvent(new CustomEvent('argmap:focus-note')));
+  }
+
+  editLink(): void {
+    const id = this.primary;
+    if (!id) return this.flash('Select a box first.');
+    const cur = this.doc.get(id)?.link ?? '';
+    const url = window.prompt('Link (leave empty to remove)', cur || 'https://');
+    if (url === null) return;
+    const clean = url.trim() === 'https://' ? '' : url.trim();
+    if (clean && !/^(https?:|mailto:)/i.test(clean)) return this.flash('Links must start with http://, https:// or mailto:', 'error');
+    this.doc.setLink(id, clean);
+  }
+
+  addSticky(at?: { x: number; y: number }): void {
+    this.commitEditing();
+    let p = at;
+    if (!p) {
+      const b = this.primary ? this.layout.boxes.get(this.primary) : undefined;
+      p = b ? { x: b.x + b.w + 140, y: b.y } : this.screenToMap(this.viewport.w / 2, this.viewport.h / 3);
+    }
+    const id = this.doc.addSticky('', p.x, p.y);
+    this.afterInsert(id);
+  }
+
+  /** Alt+Click: connect the selected node to another node. */
+  connectTo(targetId: string): void {
+    const from = this.primary;
+    if (!from || from === targetId) return this.flash('Select a box, then Alt+Click another box to connect them.');
+    const id = this.doc.addConnection(from, targetId);
+    if (!id) return this.flash('These boxes are already connected.');
+    this.selectConnection(id);
+  }
+
+  // ------------------------------------------------------------------- find
+
+  openFind(): void {
+    this.find = this.find ?? { query: '', matches: [], index: 0 };
+    this.emit();
+    queueMicrotask(() => window.dispatchEvent(new CustomEvent('argmap:focus-find')));
+  }
+
+  closeFind(): void {
+    this.find = null;
+    this.emit();
+  }
+
+  runFind(query: string, jump = true): void {
+    const q = query.trim().toLocaleLowerCase();
+    const matches = q
+      ? this.doc.all()
+          .filter((n) => isTextNode(n) && `${n.text}\n${n.note ?? ''}`.toLocaleLowerCase().includes(q))
+          .sort((a, b) => {
+            const ba = this.layout.boxes.get(a.id), bb = this.layout.boxes.get(b.id);
+            return (ba?.y ?? 0) - (bb?.y ?? 0) || (ba?.x ?? 0) - (bb?.x ?? 0);
+          })
+          .map((n) => n.id)
+      : [];
+    this.find = { query, matches, index: 0 };
+    if (jump && matches.length) this.revealMatch(0);
+    else this.emit();
+  }
+
+  findStep(dir: 1 | -1): void {
+    if (!this.find || !this.find.matches.length) return;
+    const n = this.find.matches.length;
+    this.revealMatch((this.find.index + dir + n) % n);
+  }
+
+  private revealMatch(i: number): void {
+    if (!this.find) return;
+    this.find.index = i;
+    const id = this.find.matches[i];
+    // Unfold collapsed ancestors so the match is visible.
+    const fold: string[] = [];
+    let cur = this.doc.get(this.doc.get(id)?.parent);
+    while (cur) {
+      if (cur.collapsed) fold.push(cur.id);
+      cur = this.doc.get(cur.parent);
+    }
+    if (fold.length) this.doc.setCollapsed(fold, false);
+    this.selection = [id];
+    this.scrollIntoView(id);
+    this.emit();
+  }
+
+  // ------------------------------------------------------- import / export
+
+  restoreVersion(index: number): void {
+    const snap = this.history[index];
+    if (!snap) return;
+    this.commitEditing();
+    this.doc.restore(snap);
+    this.selection = [];
+    this.relayout();
+    this.flash(`Restored the version from ${new Date(snap.savedAt).toLocaleString()}. Undo to go back.`);
+  }
+
+  async importMindMupFile(): Promise<void> {
+    if (!(await this.confirmDiscard())) return;
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.mup,application/json';
+    input.onchange = async () => {
+      const f = input.files?.[0];
+      if (!f) return;
+      try {
+        const file = importMindMup(await f.text());
+        this.loadFile(file, { name: `${file.title}.amap`, dirty: true });
+        this.flash(`Imported ${f.name}.`);
+      } catch (e) {
+        this.flash((e as Error).message, 'error');
+      }
+    };
+    input.click();
+  }
+
+  private baseName(): string {
+    return this.doc.title.replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'Argument map';
+  }
+
+  private async svg(embedFonts: boolean) {
+    const canvas = document.querySelector('.canvas') ?? document.documentElement;
+    return buildSvg({
+      nodes: this.doc.all(),
+      layout: this.layout,
+      theme: this.doc.theme,
+      labels: this.labels,
+      connections: this.doc.allConnections(),
+      colors: readColors(canvas),
+      title: this.doc.title,
+      embedFonts,
+    });
+  }
+
+  async exportAs(kind: 'png' | 'svg' | 'pdf' | 'md' | 'txt'): Promise<void> {
+    this.commitEditing();
+    try {
+      let saved: { name: string } | null = null;
+      const base = this.baseName();
+      if (kind === 'png') {
+        const { svg, width, height } = await this.svg(true);
+        const png = await svgToPng(svg, width, height, 2);
+        saved = await platform.exportFile(`${base}.png`, png, { name: 'PNG image', extensions: ['png'] });
+      } else if (kind === 'svg') {
+        const { svg } = await this.svg(true);
+        saved = await platform.exportFile(`${base}.svg`, svg, { name: 'SVG image', extensions: ['svg'] });
+      } else if (kind === 'pdf') {
+        const { svg, width, height } = await this.svg(true);
+        saved = await platform.exportPdf(svg, width, height, `${base}.pdf`);
+      } else if (kind === 'md') {
+        saved = await platform.exportFile(`${base}.md`, toMarkdown(this.doc.title, this.doc.all()), { name: 'Markdown', extensions: ['md'] });
+      } else {
+        saved = await platform.exportFile(`${base}.txt`, toPlainText(this.doc.title, this.doc.all()), { name: 'Text', extensions: ['txt'] });
+      }
+      if (saved && platform.kind === 'desktop') this.flash(`Exported ${saved.name}.`);
+    } catch (e) {
+      this.flash(`Export failed: ${(e as Error).message}`, 'error');
+    }
+  }
+
+  async exportNotes(): Promise<void> {
+    const md = [`# Notes: ${this.doc.title}`, ''];
+    for (const n of this.doc.all().filter((x) => x.note)) md.push(`## ${n.text || '(untitled box)'}`, '', n.note!, '');
+    await platform.exportFile(`${this.baseName()} notes.md`, md.join('\n'), { name: 'Markdown', extensions: ['md'] });
   }
 }

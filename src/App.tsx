@@ -5,7 +5,11 @@ import { canvasContextMenu, cmd, commandForKey, nodeContextMenu } from './comman
 import { Canvas } from './ui/Canvas';
 import { MenuBar } from './ui/MenuBar';
 import { ContextMenu } from './ui/Menu';
-import { AboutDialog, ShortcutsDialog } from './ui/Dialogs';
+import { AboutDialog, HistoryDialog, ShortcutsDialog } from './ui/Dialogs';
+import { NodeToolbar } from './ui/NodeToolbar';
+import { NotesPanel } from './ui/NotesPanel';
+import { FindBar } from './ui/FindBar';
+import { ThemePanel } from './ui/ThemePanel';
 import { isClaim } from './model/types';
 
 const editor = new Editor(domMeasure);
@@ -20,7 +24,7 @@ function isTextField(el: EventTarget | null): boolean {
 export function App() {
   useSyncExternalStore(editor.subscribe, editor.getVersion);
   const [menu, setMenu] = useState<{ kind: 'node' | 'canvas'; x: number; y: number } | null>(null);
-  const [dialog, setDialog] = useState<'shortcuts' | 'about' | null>(null);
+  const [dialog, setDialog] = useState<'shortcuts' | 'about' | 'theme' | 'history' | null>(null);
   const closeMenu = useCallback(() => setMenu(null), []);
 
   // Re-measure once web fonts are ready.
@@ -31,9 +35,15 @@ export function App() {
   useEffect(() => {
     const onShortcuts = () => setDialog('shortcuts');
     const onAbout = () => setDialog('about');
+    const onTheme = () => setDialog('theme');
+    const onHistory = () => setDialog('history');
+    window.addEventListener('argmap:history', onHistory);
     window.addEventListener('argmap:shortcuts', onShortcuts);
     window.addEventListener('argmap:about', onAbout);
+    window.addEventListener('argmap:theme', onTheme);
     return () => {
+      window.removeEventListener('argmap:theme', onTheme);
+      window.removeEventListener('argmap:history', onHistory);
       window.removeEventListener('argmap:shortcuts', onShortcuts);
       window.removeEventListener('argmap:about', onAbout);
     };
@@ -116,11 +126,19 @@ export function App() {
 
   const zoomPct = Math.round(editor.view.zoom * 100);
 
+  useEffect(() => {
+    if (editor.appearance === 'system') delete document.documentElement.dataset.theme;
+    else document.documentElement.dataset.theme = editor.appearance;
+  }, [editor.appearance]);
+
   return (
     <div className="app">
       <MenuBar editor={editor} />
+      <div className="workspace">
       <main className="stage">
         <Canvas editor={editor} onContextMenu={(kind, x, y) => setMenu({ kind, x, y })} />
+        <NodeToolbar editor={editor} onMore={(x, y) => setMenu({ kind: 'node', x, y })} />
+        {editor.find ? <FindBar editor={editor} /> : null}
 
         <div className="toolbar toolbar-insert" role="toolbar" aria-label="Insert">
           <button onClick={() => cmd('insert.root').run(editor)} title="New root claim (Ctrl+D)">
@@ -149,6 +167,8 @@ export function App() {
           <div className={`toast toast-${editor.message.kind}`} role="status">{editor.message.text}</div>
         ) : null}
       </main>
+      {editor.notesOpen ? <NotesPanel editor={editor} /> : null}
+      </div>
 
       {menu ? (
         <ContextMenu
@@ -161,6 +181,8 @@ export function App() {
       ) : null}
       {dialog === 'shortcuts' ? <ShortcutsDialog onClose={() => setDialog(null)} /> : null}
       {dialog === 'about' ? <AboutDialog onClose={() => setDialog(null)} /> : null}
+      {dialog === 'theme' ? <ThemePanel editor={editor} onClose={() => setDialog(null)} /> : null}
+      {dialog === 'history' ? <HistoryDialog editor={editor} onClose={() => setDialog(null)} /> : null}
     </div>
   );
 }

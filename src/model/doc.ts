@@ -1,5 +1,5 @@
 import * as Y from 'yjs';
-import { MapFile, MapNode, GroupKind, isClaim, isGroup } from './types';
+import { Connection, DEFAULT_THEME, MapFile, MapNode, GroupKind, NodeStyle, Theme, isClaim, isGroup } from './types';
 
 type YNode = Y.Map<unknown>;
 
@@ -11,7 +11,7 @@ export function newId(): string {
 }
 
 const NODE_FIELDS: (keyof MapNode)[] = [
-  'id', 'kind', 'parent', 'order', 'text', 'implicit', 'collapsed', 'x', 'y', 'dx', 'dy',
+  'id', 'kind', 'parent', 'order', 'text', 'implicit', 'collapsed', 'x', 'y', 'dx', 'dy', 'style', 'note', 'link',
 ];
 
 /**
@@ -22,13 +22,15 @@ export class MapDoc {
   readonly ydoc: Y.Doc;
   readonly nodes: Y.Map<YNode>;
   readonly meta: Y.Map<unknown>;
+  readonly connections: Y.Map<Connection>;
   readonly undo: Y.UndoManager;
 
   constructor(ydoc: Y.Doc = new Y.Doc()) {
     this.ydoc = ydoc;
     this.nodes = ydoc.getMap<YNode>('nodes');
     this.meta = ydoc.getMap('meta');
-    this.undo = new Y.UndoManager([this.nodes, this.meta], { captureTimeout: 0 });
+    this.connections = ydoc.getMap<Connection>('connections');
+    this.undo = new Y.UndoManager([this.nodes, this.meta, this.connections], { captureTimeout: 0 });
     this.undo.addTrackedOrigin(this);
   }
 
@@ -56,6 +58,32 @@ export class MapDoc {
 
   set title(value: string) {
     this.meta.set('title', value);
+  }
+
+  get theme(): Theme {
+    const t = (this.meta.get('theme') as Partial<Theme> | undefined) ?? {};
+    return {
+      ...DEFAULT_THEME,
+      ...t,
+      reason: { ...DEFAULT_THEME.reason, ...t.reason },
+      objection: { ...DEFAULT_THEME.objection, ...t.objection },
+      root: { ...DEFAULT_THEME.root, ...t.root },
+    };
+  }
+
+  setTheme(patch: Partial<Theme>): void {
+    const cur = (this.meta.get('theme') as Partial<Theme> | undefined) ?? {};
+    this.transact(() => this.meta.set('theme', { ...cur, ...patch }));
+  }
+
+  resetTheme(): void {
+    this.transact(() => this.meta.delete('theme'));
+  }
+
+  allConnections(): Connection[] {
+    const out: Connection[] = [];
+    this.connections.forEach((c) => out.push(c));
+    return out;
   }
 
   children(id: string | null): MapNode[] {
@@ -164,6 +192,61 @@ export class MapDoc {
     return id;
   }
 
+  addSticky(text = '', x = 0, y = 0): string {
+    const id = newId();
+    this.transact(() => this.put({ id, kind: 'sticky', parent: null, order: this.orderAfter(null), text, x: Math.round(x), y: Math.round(y) }));
+    return id;
+  }
+
+  /** Merge style changes into nodes; `undefined` values clear that property. */
+  setStyle(ids: string[], patch: NodeStyle): void {
+    this.transact(() => {
+      for (const id of ids) {
+        const n = this.get(id);
+        if (!n) continue;
+        const next: Record<string, unknown> = { ...(n.style ?? {}) };
+        for (const [k, v] of Object.entries(patch)) {
+          if (v === undefined || v === false || v === '') delete next[k];
+          else next[k] = v;
+        }
+        this.update(id, { style: Object.keys(next).length ? (next as NodeStyle) : undefined });
+      }
+    });
+  }
+
+  replaceStyle(ids: string[], style: NodeStyle | undefined): void {
+    this.transact(() => {
+      for (const id of ids) if (this.has(id)) this.update(id, { style: style && Object.keys(style).length ? { ...style } : undefined });
+    });
+  }
+
+  resetAllStyles(): void {
+    this.transact(() => {
+      for (const n of this.all()) if (n.style) this.update(n.id, { style: undefined });
+      this.meta.delete('theme');
+    });
+  }
+
+  setNote(id: string, note: string): void {
+    if ((this.get(id)?.note ?? '') !== note) this.update(id, { note: note || undefined });
+  }
+
+  setLink(id: string, link: string): void {
+    this.update(id, { link: link.trim() || undefined });
+  }
+
+  addConnection(from: string, to: string): string | null {
+    if (from === to || !this.has(from) || !this.has(to)) return null;
+    if (this.allConnections().some((c) => (c.from === from && c.to === to) || (c.from === to && c.to === from))) return null;
+    const id = newId();
+    this.transact(() => this.connections.set(id, { id, from, to }));
+    return id;
+  }
+
+  removeConnection(id: string): void {
+    this.transact(() => this.connections.delete(id));
+  }
+
   /** Add a reason or objection to a claim, with one empty premise. */
   addGroup(claimId: string, kind: GroupKind, text = ''): { groupId: string; premiseId: string } | null {
     const claim = this.get(claimId);
@@ -205,6 +288,7 @@ export class MapDoc {
       const claimId = n.parent!;
       return this.addGroup(claimId, n.kind as GroupKind)?.premiseId ?? null;
     }
+    if (n.kind === 'sticky') return this.addSticky('', (n.x ?? 0) + 260, n.y ?? 0);
     if (n.parent === null) {
       return this.addRoot('', (n.x ?? 0) + 320, n.y ?? 0);
     }
@@ -289,7 +373,14 @@ export class MapDoc {
         for (const sid of this.subtreeIds(id)) this.nodes.delete(sid);
       }
       for (const g of touchedGroups) this.dropEmptyGroup(g);
+      this.dropDanglingConnections();
     });
+  }
+
+  private dropDanglingConnections(): void {
+    for (const c of this.allConnections()) {
+      if (!this.has(c.from) || !this.has(c.to)) this.connections.delete(c.id);
+    }
   }
 
   private dropEmptyGroup(groupId: string): void {
@@ -312,6 +403,7 @@ export class MapDoc {
     const n = this.get(id);
     const t = this.get(targetId);
     if (!n || !t || id === targetId) return false;
+    if (n.kind === 'sticky' || t.kind === 'sticky') return false;
     if (this.isAncestor(id, targetId)) return false;
     if (isClaim(n)) return isClaim(t) || isGroup(t);
     if (isGroup(n)) return isClaim(t) && n.parent !== targetId;
@@ -355,6 +447,9 @@ export class MapDoc {
       text: n.text,
       implicit: n.implicit,
       collapsed: n.collapsed,
+      style: n.style,
+      note: n.note,
+      link: n.link,
       children: (byParent.get(n.id) ?? []).map(build),
     });
     return top.map((id) => this.get(id)).filter((n): n is MapNode => !!n).map(build);
@@ -373,7 +468,8 @@ export class MapDoc {
       const id = newId();
       this.put({
         id, kind: c.kind, parent, order: this.orderAfter(parent), text: c.text ?? '',
-        implicit: c.implicit || undefined, collapsed: c.collapsed || undefined, ...extra,
+        implicit: c.implicit || undefined, collapsed: c.collapsed || undefined,
+        style: c.style, note: c.note, link: c.link, ...extra,
       });
       for (const ch of c.children ?? []) insert(ch, id);
       return id;
@@ -381,7 +477,10 @@ export class MapDoc {
     this.transact(() => {
       let offset = 0;
       for (const c of clip) {
-        if (c.kind === 'claim') {
+        if (c.kind === 'sticky') {
+          out.push(insert({ ...c, children: [] }, null, { x: Math.round(x + offset), y: Math.round(y) }));
+          offset += 260;
+        } else if (c.kind === 'claim') {
           if (isGroup(target)) out.push(insert(c, target!.id));
           else if (isClaim(target)) {
             const g = newId();
@@ -416,7 +515,22 @@ export class MapDoc {
       version: 1,
       title: this.title,
       nodes: this.all().sort((a, b) => (a.parent ?? '').localeCompare(b.parent ?? '') || a.order - b.order),
+      connections: this.allConnections(),
+      theme: (this.meta.get('theme') as Partial<Theme> | undefined) ?? undefined,
     };
+  }
+
+  /** Replace the content with an earlier version, as one undoable step. */
+  restore(snapshot: { title: string; nodes: MapNode[]; connections?: Connection[]; theme?: Partial<Theme> }): void {
+    this.transact(() => {
+      this.nodes.clear();
+      this.connections.clear();
+      for (const n of snapshot.nodes) this.put(n);
+      for (const c of snapshot.connections ?? []) if (this.has(c.from) && this.has(c.to)) this.connections.set(c.id, c);
+      if (snapshot.theme) this.meta.set('theme', snapshot.theme);
+      else this.meta.delete('theme');
+      this.meta.set('title', snapshot.title);
+    });
   }
 
   /** Replace the whole document with the contents of a file (not undoable). */
@@ -424,8 +538,13 @@ export class MapDoc {
     this.ydoc.transact(() => {
       this.nodes.clear();
       this.meta.clear();
+      this.connections.clear();
       this.meta.set('title', file.title || 'Untitled argument');
+      if (file.theme) this.meta.set('theme', file.theme);
       for (const n of file.nodes) this.put(n);
+      for (const c of file.connections ?? []) {
+        if (this.has(c.from) && this.has(c.to)) this.connections.set(c.id, c);
+      }
     }, 'load');
     this.undo.clear();
   }
@@ -436,6 +555,9 @@ export interface ClipNode {
   text: string;
   implicit?: boolean;
   collapsed?: boolean;
+  style?: NodeStyle;
+  note?: string;
+  link?: string;
   children: ClipNode[];
 }
 

@@ -25,14 +25,14 @@ export function parseMapFile(text: string): MapFile {
   const nodes: MapNode[] = [];
   for (const raw of f.nodes as MapNode[]) {
     if (!raw || typeof raw.id !== 'string' || ids.has(raw.id)) continue;
-    if (!['claim', 'reason', 'objection'].includes(raw.kind)) continue;
+    if (!['claim', 'reason', 'objection', 'sticky'].includes(raw.kind)) continue;
     ids.add(raw.id);
     nodes.push({ ...raw, text: typeof raw.text === 'string' ? raw.text : '', order: Number(raw.order) || 0 });
   }
   // Drop nodes whose parent is missing; turn orphaned claims into roots.
   for (const n of nodes) {
     if (n.parent !== null && !ids.has(n.parent)) {
-      if (n.kind === 'claim') {
+      if (n.kind === 'claim' || n.kind === 'sticky') {
         n.parent = null;
         n.x = n.x ?? 0;
         n.y = n.y ?? 0;
@@ -43,7 +43,14 @@ export function parseMapFile(text: string): MapFile {
     format: 'argument-mapper',
     version: 1,
     title: typeof f.title === 'string' ? f.title : 'Untitled argument',
-    nodes: nodes.filter((n) => n.parent === null ? n.kind === 'claim' : ids.has(n.parent)),
+    nodes: nodes.filter((n) => n.parent === null ? n.kind === 'claim' || n.kind === 'sticky' : ids.has(n.parent) && n.kind !== 'sticky'),
+    connections: Array.isArray(f.connections)
+      ? f.connections.filter((c) => c && typeof c.id === 'string' && ids.has(c.from) && ids.has(c.to))
+      : [],
+    theme: f.theme && typeof f.theme === 'object' ? f.theme : undefined,
+    history: Array.isArray(f.history)
+      ? f.history.filter((h) => h && typeof h.savedAt === 'string' && Array.isArray(h.nodes)).slice(0, 50)
+      : undefined,
     settings: f.settings,
   };
 }
