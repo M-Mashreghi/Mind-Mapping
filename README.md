@@ -8,6 +8,17 @@ nested rebuttals, then share the map with people on your network.
 > place. See the [roadmap](docs/ROADMAP.md) for what comes next: Windows/Linux
 > installers, live LAN collaboration and Google Drive.
 
+## Download
+
+Installers are built by GitHub Actions for every release:
+
+- **Windows:** `Argument-Mapper-Setup-<version>.exe` (installer) or `Argument-Mapper-Portable-<version>.exe` (no install needed)
+- **Linux:** `Argument-Mapper-<version>-x86_64.AppImage` (make it executable and run it) or `Argument-Mapper-<version>-amd64.deb` (`sudo apt install ./Argument-Mapper-*.deb`)
+
+Windows may show a SmartScreen warning the first time because the app is not code-signed; choose **More info → Run anyway**.
+
+`.amap` files open in the app when you double-click them after installing.
+
 ## Features
 
 - Claims, **reasons** (green) and **objections** (red); several premises in one reason are co-premises
@@ -57,7 +68,13 @@ npm run dev        # editor in the browser at http://localhost:5173
 npm start          # build and run the desktop app (Electron)
 npm test           # unit tests
 npm run typecheck
+npm run dist:linux # AppImage + .deb in release/
+npm run dist:win   # Windows installer + portable .exe (build on Windows)
 ```
+
+To build installers in the cloud, open **Actions → Build desktop apps → Run workflow**; the
+files appear as downloadable artifacts. Pushing a tag such as `v0.2.0` also attaches them
+to a GitHub Release.
 
 ### Project layout
 

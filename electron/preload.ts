@@ -13,6 +13,10 @@ contextBridge.exposeInMainWorld('argmapDesktop', {
     ipcRenderer.removeAllListeners('app:close-request');
     ipcRenderer.on('app:close-request', () => handler());
   },
+  onOpenPath: (handler: (path: string) => void) => {
+    ipcRenderer.removeAllListeners('app:open-path');
+    ipcRenderer.on('app:open-path', (_e, p: string) => handler(p));
+  },
   confirmClose: () => ipcRenderer.send('app:close-confirmed'),
   openExternal: (url: string) => ipcRenderer.send('app:open-external', url),
   exportFile: (name: string, data: Uint8Array | string, filter: { name: string; extensions: string[] }) =>

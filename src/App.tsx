@@ -115,6 +115,8 @@ export function App() {
       bridge.onCloseRequest(async () => {
         if (await editor.save()) bridge.confirmClose();
       });
+      // Files opened from the file manager or command line.
+      bridge.onOpenPath((path) => void editor.openRecent(path));
     }
     // Web: the draft is kept in local storage, but still warn on accidental close.
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
