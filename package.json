@@ -1,0 +1,38 @@
+{
+  "name": "argument-mapper",
+  "productName": "Argument Mapper",
+  "version": "0.1.0",
+  "description": "Free, open-source argument mapping for the desktop: reasons, objections, co-premises and live LAN collaboration.",
+  "license": "MIT",
+  "author": "Argument Mapper contributors",
+  "private": true,
+  "type": "module",
+  "main": "dist-electron/main.cjs",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build && node scripts/build-electron.mjs",
+    "build:web": "vite build",
+    "build:electron": "node scripts/build-electron.mjs",
+    "start": "npm run build && electron .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "yjs": "^13.6.33"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "electron": "^45.4.1",
+    "esbuild": "^0.28.2",
+    "jsdom": "^31.0.1",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.1"
+  }
+}
