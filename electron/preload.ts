@@ -15,4 +15,8 @@ contextBridge.exposeInMainWorld('argmapDesktop', {
   },
   confirmClose: () => ipcRenderer.send('app:close-confirmed'),
   openExternal: (url: string) => ipcRenderer.send('app:open-external', url),
+  exportFile: (name: string, data: Uint8Array | string, filter: { name: string; extensions: string[] }) =>
+    ipcRenderer.invoke('file:export', name, data, filter),
+  exportPdf: (svg: string, width: number, height: number, name: string) =>
+    ipcRenderer.invoke('file:exportPdf', svg, width, height, name),
 });

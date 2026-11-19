@@ -48,6 +48,9 @@ export function parseMapFile(text: string): MapFile {
       ? f.connections.filter((c) => c && typeof c.id === 'string' && ids.has(c.from) && ids.has(c.to))
       : [],
     theme: f.theme && typeof f.theme === 'object' ? f.theme : undefined,
+    history: Array.isArray(f.history)
+      ? f.history.filter((h) => h && typeof h.savedAt === 'string' && Array.isArray(h.nodes)).slice(0, 50)
+      : undefined,
     settings: f.settings,
   };
 }

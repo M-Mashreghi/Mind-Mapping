@@ -5,7 +5,7 @@ import { canvasContextMenu, cmd, commandForKey, nodeContextMenu } from './comman
 import { Canvas } from './ui/Canvas';
 import { MenuBar } from './ui/MenuBar';
 import { ContextMenu } from './ui/Menu';
-import { AboutDialog, ShortcutsDialog } from './ui/Dialogs';
+import { AboutDialog, HistoryDialog, ShortcutsDialog } from './ui/Dialogs';
 import { NodeToolbar } from './ui/NodeToolbar';
 import { NotesPanel } from './ui/NotesPanel';
 import { FindBar } from './ui/FindBar';
@@ -24,7 +24,7 @@ function isTextField(el: EventTarget | null): boolean {
 export function App() {
   useSyncExternalStore(editor.subscribe, editor.getVersion);
   const [menu, setMenu] = useState<{ kind: 'node' | 'canvas'; x: number; y: number } | null>(null);
-  const [dialog, setDialog] = useState<'shortcuts' | 'about' | 'theme' | null>(null);
+  const [dialog, setDialog] = useState<'shortcuts' | 'about' | 'theme' | 'history' | null>(null);
   const closeMenu = useCallback(() => setMenu(null), []);
 
   // Re-measure once web fonts are ready.
@@ -36,11 +36,14 @@ export function App() {
     const onShortcuts = () => setDialog('shortcuts');
     const onAbout = () => setDialog('about');
     const onTheme = () => setDialog('theme');
+    const onHistory = () => setDialog('history');
+    window.addEventListener('argmap:history', onHistory);
     window.addEventListener('argmap:shortcuts', onShortcuts);
     window.addEventListener('argmap:about', onAbout);
     window.addEventListener('argmap:theme', onTheme);
     return () => {
       window.removeEventListener('argmap:theme', onTheme);
+      window.removeEventListener('argmap:history', onHistory);
       window.removeEventListener('argmap:shortcuts', onShortcuts);
       window.removeEventListener('argmap:about', onAbout);
     };
@@ -179,6 +182,7 @@ export function App() {
       {dialog === 'shortcuts' ? <ShortcutsDialog onClose={() => setDialog(null)} /> : null}
       {dialog === 'about' ? <AboutDialog onClose={() => setDialog(null)} /> : null}
       {dialog === 'theme' ? <ThemePanel editor={editor} onClose={() => setDialog(null)} /> : null}
+      {dialog === 'history' ? <HistoryDialog editor={editor} onClose={() => setDialog(null)} /> : null}
     </div>
   );
 }

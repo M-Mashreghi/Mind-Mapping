@@ -13,7 +13,7 @@ Each phase ships as its own pull request.
 - Open/save `.amap` files, autosave, recent files
 - Right-to-left text
 
-## Phase 2: styling, notes and export
+## Phase 2: styling, notes and export ✅
 
 - Node toolbar: fill, border, shape, font, size, text style, alignment, lists, links
 - Theme panel: map style, density, support/objection colours, root overrides, fonts, borders, lines, dark mode

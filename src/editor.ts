@@ -1,5 +1,8 @@
 import { ClipNode, MapDoc, newMapFile } from './model/doc';
-import { MapFile, MapNode, NodeStyle, Theme, FontSize, isClaim, isGroup, isTextNode } from './model/types';
+import { MapFile, MapNode, NodeStyle, Snapshot, Theme, FontSize, isClaim, isGroup, isTextNode } from './model/types';
+import { importMindMup } from './model/mindmup';
+import { buildSvg, readColors, svgToPng } from './export/svg';
+import { toMarkdown, toPlainText } from './export/outline';
 import { parseMapFile, serialize, FILE_EXTENSION } from './model/file';
 import { layoutMap, LayoutResult, Size, computeLabels } from './layout/layout';
 import { platform } from './platform/platform';
@@ -39,6 +42,8 @@ export class Editor {
   file: FileState = { name: 'Untitled argument.amap', dirty: false };
   message: { text: string; kind: 'info' | 'error' } | null = null;
   recent: string[] = [];
+  /** Saved versions of this map, newest first. */
+  history: Snapshot[] = [];
 
   private measure: (node: MapNode, theme: Theme) => Size;
   private styleClip: NodeStyle | undefined;
@@ -185,6 +190,7 @@ export class Editor {
 
   loadFile(file: MapFile, state?: Partial<FileState>): void {
     this.doc.load(file);
+    this.history = file.history ?? [];
     this.selection = [];
     this.editing = null;
     this.file = { name: `${file.title}.${FILE_EXTENSION}`, dirty: false, ...state };
@@ -247,12 +253,24 @@ export class Editor {
   async save(asNew = false): Promise<boolean> {
     if (this.autosaveTimer) clearTimeout(this.autosaveTimer);
     this.commitEditing();
-    const content = serialize(this.doc.toFile());
+    const current = this.doc.toFile();
+    const snapshot: Snapshot = {
+      savedAt: new Date().toISOString(), title: current.title, nodes: current.nodes,
+      connections: current.connections, theme: current.theme,
+    };
+    // Keep one version per 10 minutes of work, so autosave doesn't flood the history.
+    const last = this.history[0];
+    const same = last && JSON.stringify([last.nodes, last.connections, last.theme, last.title]) ===
+      JSON.stringify([snapshot.nodes, snapshot.connections, snapshot.theme, snapshot.title]);
+    const recent = last && Date.now() - Date.parse(last.savedAt) < 10 * 60 * 1000;
+    const history = same ? this.history : recent ? [snapshot, ...this.history.slice(1)] : [snapshot, ...this.history].slice(0, 25);
+    const content = serialize({ ...current, history });
     try {
       const saved = asNew || !this.file.path
         ? await platform.saveAs(content, this.file.path ? this.file.name : this.suggestedName())
         : await platform.save(content, this.file.name, this.file.path);
       if (!saved) return false;
+      this.history = history;
       this.file = { name: saved.name, path: saved.path, dirty: false };
       platform.setDirty(false);
       this.clearDraft();
@@ -890,5 +908,86 @@ export class Editor {
     this.selection = [id];
     this.scrollIntoView(id);
     this.emit();
+  }
+
+  // ------------------------------------------------------- import / export
+
+  restoreVersion(index: number): void {
+    const snap = this.history[index];
+    if (!snap) return;
+    this.commitEditing();
+    this.doc.restore(snap);
+    this.selection = [];
+    this.relayout();
+    this.flash(`Restored the version from ${new Date(snap.savedAt).toLocaleString()}. Undo to go back.`);
+  }
+
+  async importMindMupFile(): Promise<void> {
+    if (!(await this.confirmDiscard())) return;
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.mup,application/json';
+    input.onchange = async () => {
+      const f = input.files?.[0];
+      if (!f) return;
+      try {
+        const file = importMindMup(await f.text());
+        this.loadFile(file, { name: `${file.title}.amap`, dirty: true });
+        this.flash(`Imported ${f.name}.`);
+      } catch (e) {
+        this.flash((e as Error).message, 'error');
+      }
+    };
+    input.click();
+  }
+
+  private baseName(): string {
+    return this.doc.title.replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'Argument map';
+  }
+
+  private async svg(embedFonts: boolean) {
+    const canvas = document.querySelector('.canvas') ?? document.documentElement;
+    return buildSvg({
+      nodes: this.doc.all(),
+      layout: this.layout,
+      theme: this.doc.theme,
+      labels: this.labels,
+      connections: this.doc.allConnections(),
+      colors: readColors(canvas),
+      title: this.doc.title,
+      embedFonts,
+    });
+  }
+
+  async exportAs(kind: 'png' | 'svg' | 'pdf' | 'md' | 'txt'): Promise<void> {
+    this.commitEditing();
+    try {
+      let saved: { name: string } | null = null;
+      const base = this.baseName();
+      if (kind === 'png') {
+        const { svg, width, height } = await this.svg(true);
+        const png = await svgToPng(svg, width, height, 2);
+        saved = await platform.exportFile(`${base}.png`, png, { name: 'PNG image', extensions: ['png'] });
+      } else if (kind === 'svg') {
+        const { svg } = await this.svg(true);
+        saved = await platform.exportFile(`${base}.svg`, svg, { name: 'SVG image', extensions: ['svg'] });
+      } else if (kind === 'pdf') {
+        const { svg, width, height } = await this.svg(true);
+        saved = await platform.exportPdf(svg, width, height, `${base}.pdf`);
+      } else if (kind === 'md') {
+        saved = await platform.exportFile(`${base}.md`, toMarkdown(this.doc.title, this.doc.all()), { name: 'Markdown', extensions: ['md'] });
+      } else {
+        saved = await platform.exportFile(`${base}.txt`, toPlainText(this.doc.title, this.doc.all()), { name: 'Text', extensions: ['txt'] });
+      }
+      if (saved && platform.kind === 'desktop') this.flash(`Exported ${saved.name}.`);
+    } catch (e) {
+      this.flash(`Export failed: ${(e as Error).message}`, 'error');
+    }
+  }
+
+  async exportNotes(): Promise<void> {
+    const md = [`# Notes: ${this.doc.title}`, ''];
+    for (const n of this.doc.all().filter((x) => x.note)) md.push(`## ${n.text || '(untitled box)'}`, '', n.note!, '');
+    await platform.exportFile(`${this.baseName()} notes.md`, md.join('\n'), { name: 'Markdown', extensions: ['md'] });
   }
 }

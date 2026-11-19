@@ -22,6 +22,13 @@ export interface DesktopBridge {
   onCloseRequest(handler: () => void): void;
   confirmClose(): void;
   openExternal(url: string): void;
+  exportFile(suggestedName: string, data: Uint8Array | string, filter: FileFilter): Promise<SavedFile | null>;
+  exportPdf(svg: string, width: number, height: number, suggestedName: string): Promise<SavedFile | null>;
+}
+
+export interface FileFilter {
+  name: string;
+  extensions: string[];
 }
 
 declare global {
@@ -42,6 +49,9 @@ export interface Platform {
   setTitle(title: string): void;
   toggleFullScreen(): void;
   openExternal(url: string): void;
+  /** Save an exported file (image, text…) where the user chooses. */
+  exportFile(suggestedName: string, data: Uint8Array | string, filter: FileFilter): Promise<SavedFile | null>;
+  exportPdf(svg: string, width: number, height: number, suggestedName: string): Promise<SavedFile | null>;
 }
 
 function desktopPlatform(bridge: DesktopBridge): Platform {
@@ -56,12 +66,14 @@ function desktopPlatform(bridge: DesktopBridge): Platform {
     setTitle: (t) => bridge.setTitle(t),
     toggleFullScreen: () => bridge.toggleFullScreen(),
     openExternal: (url) => bridge.openExternal(url),
+    exportFile: (name, data, filter) => bridge.exportFile(name, data, filter),
+    exportPdf: (svg, w, h, name) => bridge.exportPdf(svg, w, h, name),
   };
 }
 
 function webPlatform(): Platform {
-  const download = (content: string, name: string): SavedFile => {
-    const blob = new Blob([content], { type: 'application/json' });
+  const download = (content: string | Uint8Array, name: string, type = 'application/json'): SavedFile => {
+    const blob = new Blob([content as BlobPart], { type });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -96,6 +108,21 @@ function webPlatform(): Platform {
       else void document.documentElement.requestFullscreen?.();
     },
     openExternal: (url) => window.open(url, '_blank', 'noopener'),
+    exportFile: async (name, data, filter) => {
+      const ext = filter.extensions[0];
+      const type = ext === 'png' ? 'image/png' : ext === 'svg' ? 'image/svg+xml' : 'text/plain';
+      return download(data, name, type);
+    },
+    exportPdf: async (svg, _w, _h, name) => {
+      // Browsers: print the drawing; the print dialog offers "Save as PDF".
+      const win = window.open('', '_blank');
+      if (!win) throw new Error('Allow pop-ups to export a PDF.');
+      win.document.write(`<!doctype html><title>${name}</title><style>@page{margin:10mm}body{margin:0}svg{max-width:100%;height:auto}</style>${svg}`);
+      win.document.close();
+      win.onload = () => win.print();
+      setTimeout(() => win.print(), 500);
+      return { name };
+    },
   };
 }
 

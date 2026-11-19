@@ -36,18 +36,7 @@ export function NotesPanel({ editor }: { editor: Editor }) {
       return (ba?.y ?? 0) - (bb?.y ?? 0) || (ba?.x ?? 0) - (bb?.x ?? 0);
     });
 
-  const exportNotes = () => {
-    const md = [`# Notes: ${editor.doc.title}`, ''];
-    for (const n of editor.doc.all().filter((x) => x.note)) {
-      md.push(`## ${n.text || '(untitled box)'}`, '', n.note!, '');
-    }
-    const blob = new Blob([md.join('\n')], { type: 'text/markdown' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `${editor.doc.title} notes.md`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-  };
+  const exportNotes = () => void editor.exportNotes();
 
   return (
     <aside className="notes-panel" aria-label="Notes" onKeyDown={(e) => e.stopPropagation()}>

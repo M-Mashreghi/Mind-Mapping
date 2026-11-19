@@ -1196,3 +1196,30 @@ legend {
   cursor: pointer;
   font-weight: 600;
 }
+
+.history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.history-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--surface-2);
+}
+
+.history-list li div {
+  display: flex;
+  flex-direction: column;
+}
+
+.history-list button {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+}

@@ -9,6 +9,16 @@ let win: BrowserWindow | null = null;
 let dirty = false;
 let forceClose = false;
 
+/** For automated tests only: write exports here instead of asking with a dialog. */
+const TEST_EXPORT_DIR = process.env.ARGMAP_TEST_EXPORT_DIR;
+
+async function askSavePath(name: string, filters: { name: string; extensions: string[] }[]): Promise<string | null> {
+  if (TEST_EXPORT_DIR) return path.join(TEST_EXPORT_DIR, path.basename(name));
+  if (!win) return null;
+  const res = await dialog.showSaveDialog(win, { defaultPath: path.join(app.getPath('documents'), name), filters });
+  return res.canceled || !res.filePath ? null : res.filePath;
+}
+
 const recentPath = () => path.join(app.getPath('userData'), 'recent.json');
 
 async function readRecent(): Promise<string[]> {
@@ -118,6 +128,33 @@ ipcMain.handle('file:saveAs', async (_e, suggestedName: string, content: string)
 });
 
 ipcMain.handle('file:recent', () => readRecent());
+
+ipcMain.handle('file:export', async (_e, name: string, data: Uint8Array | string, filter: { name: string; extensions: string[] }) => {
+  const file = await askSavePath(String(name), [{ name: String(filter?.name ?? 'File'), extensions: (filter?.extensions ?? []).map(String) }]);
+  if (!file) return null;
+  await fs.writeFile(file, typeof data === 'string' ? data : Buffer.from(data));
+  return { name: path.basename(file), path: file };
+});
+
+ipcMain.handle('file:exportPdf', async (_e, svg: string, width: number, height: number, name: string) => {
+  const file = await askSavePath(String(name), [{ name: 'PDF', extensions: ['pdf'] }]);
+  if (!file) return null;
+  // Render the SVG in a hidden, script-free window and print it to a single PDF page.
+  const pdfWin = new BrowserWindow({ show: false, webPreferences: { javascript: false, sandbox: true } });
+  try {
+    const html = `<!doctype html><meta charset="utf-8"><style>@page{margin:0}html,body{margin:0}svg{display:block}</style>${String(svg)}`;
+    await pdfWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+    const pdf = await pdfWin.webContents.printToPDF({
+      printBackground: true,
+      pageSize: { width: Math.max(1, Number(width)) / 96, height: Math.max(1, Number(height)) / 96 },
+      margins: { top: 0, bottom: 0, left: 0, right: 0 },
+    });
+    await fs.writeFile(file, pdf);
+    return { name: path.basename(file), path: file };
+  } finally {
+    pdfWin.destroy();
+  }
+});
 
 ipcMain.on('app:dirty', (_e, value: boolean) => {
   dirty = !!value;

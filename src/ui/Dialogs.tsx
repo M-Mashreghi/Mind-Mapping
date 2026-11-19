@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { commands } from '../commands';
+import { Editor } from '../editor';
 import { useDismiss } from './Menu';
 import { Logo } from './Logo';
 
@@ -65,6 +66,32 @@ export function AboutDialog({ onClose }: { onClose: () => void }) {
         <p><strong>Argument Mapper</strong> {__APP_VERSION__}</p>
         <p>Free and open-source argument mapping. Released under the MIT licence.</p>
       </div>
+    </Dialog>
+  );
+}
+
+export function HistoryDialog({ editor, onClose }: { editor: Editor; onClose: () => void }) {
+  const list = editor.history;
+  return (
+    <Dialog title="Version history" onClose={onClose}>
+      {list.length ? (
+        <>
+          <p className="hint" style={{ marginTop: 0 }}>Each save keeps a version (one per 10 minutes of work, up to 25). Restoring can be undone.</p>
+          <ul className="history-list">
+            {list.map((h, i) => (
+              <li key={h.savedAt}>
+                <div>
+                  <strong>{new Date(h.savedAt).toLocaleString()}</strong>
+                  <span className="muted">{h.nodes.filter((n) => n.kind === 'claim').length} claims{i === 0 ? ' · latest save' : ''}</span>
+                </div>
+                <button onClick={() => { editor.restoreVersion(i); onClose(); }}>Restore</button>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : (
+        <p className="hint" style={{ marginTop: 0 }}>No saved versions yet. Versions are kept in the map file each time you save.</p>
+      )}
     </Dialog>
   );
 }

@@ -117,5 +117,15 @@ export interface MapFile {
   nodes: MapNode[];
   connections?: Connection[];
   theme?: Partial<Theme>;
+  /** Earlier saved versions, newest first. */
+  history?: Snapshot[];
   settings?: Record<string, unknown>;
+}
+
+export interface Snapshot {
+  savedAt: string;
+  title: string;
+  nodes: MapNode[];
+  connections?: Connection[];
+  theme?: Partial<Theme>;
 }

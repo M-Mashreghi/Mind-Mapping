@@ -520,6 +520,19 @@ export class MapDoc {
     };
   }
 
+  /** Replace the content with an earlier version, as one undoable step. */
+  restore(snapshot: { title: string; nodes: MapNode[]; connections?: Connection[]; theme?: Partial<Theme> }): void {
+    this.transact(() => {
+      this.nodes.clear();
+      this.connections.clear();
+      for (const n of snapshot.nodes) this.put(n);
+      for (const c of snapshot.connections ?? []) if (this.has(c.from) && this.has(c.to)) this.connections.set(c.id, c);
+      if (snapshot.theme) this.meta.set('theme', snapshot.theme);
+      else this.meta.delete('theme');
+      this.meta.set('title', snapshot.title);
+    });
+  }
+
   /** Replace the whole document with the contents of a file (not undoable). */
   load(file: MapFile): void {
     this.ydoc.transact(() => {

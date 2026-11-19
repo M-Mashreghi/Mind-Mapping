@@ -37,6 +37,14 @@ const list: Command[] = [
   { id: 'file.open', label: 'Open…', shortcut: 'Ctrl+O', run: (ed) => void ed.open() },
   { id: 'file.save', label: 'Save', shortcut: 'Ctrl+S', run: (ed) => void ed.save() },
   { id: 'file.saveAs', label: 'Save as…', shortcut: 'Ctrl+Shift+S', run: (ed) => void ed.save(true) },
+  { id: 'file.importMup', label: 'MindMup file (.mup)…', run: (ed) => void ed.importMindMupFile() },
+  { id: 'file.exportPng', label: 'Image (PNG)', run: (ed) => void ed.exportAs('png') },
+  { id: 'file.exportSvg', label: 'Vector image (SVG)', run: (ed) => void ed.exportAs('svg') },
+  { id: 'file.exportPdf', label: 'PDF', run: (ed) => void ed.exportAs('pdf') },
+  { id: 'file.exportMd', label: 'Outline (Markdown)', run: (ed) => void ed.exportAs('md') },
+  { id: 'file.exportTxt', label: 'Outline (plain text)', run: (ed) => void ed.exportAs('txt') },
+  { id: 'file.exportNotes', label: 'Notes', run: (ed) => void ed.exportNotes(), enabled: (ed) => ed.doc.all().some((n) => !!n.note) },
+  { id: 'file.history', label: 'Version history…', run: () => window.dispatchEvent(new CustomEvent('argmap:history')) },
   {
     id: 'file.rename',
     label: 'Rename…',
@@ -178,7 +186,15 @@ export function cmd(id: string): Command {
 export type MenuItem = string | '-' | { label: string; items: MenuItem[] };
 
 export const menus: { label: string; items: MenuItem[] }[] = [
-  { label: 'File', items: ['file.new', 'file.open', { label: 'Open recent', items: [] }, '-', 'file.save', 'file.saveAs', '-', 'file.rename'] },
+  {
+    label: 'File',
+    items: [
+      'file.new', 'file.open', { label: 'Open recent', items: [] }, '-', 'file.save', 'file.saveAs', '-',
+      { label: 'Import', items: ['file.importMup'] },
+      { label: 'Export', items: ['file.exportPng', 'file.exportSvg', 'file.exportPdf', '-', 'file.exportMd', 'file.exportTxt', 'file.exportNotes'] },
+      '-', 'file.history', 'file.rename',
+    ],
+  },
   {
     label: 'Edit',
     items: [
