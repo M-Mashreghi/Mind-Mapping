@@ -689,12 +689,17 @@ export class Editor {
     this.doc.toggleImplicit(this.selection);
   }
 
+  /**
+   * Make the selection a reason or an objection. A selected group changes as a whole; a
+   * selected premise beside co-premises changes alone (e.g. a reason next to an objection).
+   */
   convertGroup(kind: 'reason' | 'objection'): void {
+    if (this.readOnly) return this.flashReadOnly();
     this.doc.transact(() => {
       for (const id of this.selection) {
         const n = this.doc.get(id);
-        const g = isGroup(n) ? n : this.doc.get(n?.parent);
-        if (g && isGroup(g)) this.doc.setGroupKind(g.id, kind);
+        if (isGroup(n)) this.doc.setGroupKind(n!.id, kind);
+        else if (n && isGroup(this.doc.get(n.parent))) this.doc.setPremiseStance(n.id, kind);
       }
     });
   }

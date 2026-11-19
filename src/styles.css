@@ -2722,3 +2722,23 @@ img.emoji {
 .node-social .comment-chip:hover {
   background: var(--surface-2);
 }
+
+/* A premise that argues the other way from its group (e.g. a reason beside an objection) */
+.stance-bar {
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  top: -12px;
+  height: 0;
+  border-top: calc(var(--edge-width, 1.5) * 1px + 1px) solid;
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+.stance-bar.stance-reason {
+  border-color: var(--reason-line, var(--reason));
+}
+
+.stance-bar.stance-objection {
+  border-color: var(--objection-line, var(--objection));
+}

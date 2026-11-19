@@ -11,7 +11,7 @@ function labelWidth(text: string): number {
   }
   return (labelCtx ? labelCtx.measureText(text).width : text.length * 7.5) + 14;
 }
-import { Connection, LineStyle, MapNode, STICKY, Theme } from '../model/types';
+import { Connection, LineStyle, MapNode, STICKY, Theme, stanceOf } from '../model/types';
 import { boxStyle, textStyle, themeVars } from '../theme';
 import { NodeEditor } from './NodeEditor';
 import { Emoji } from './Emoji';
@@ -272,7 +272,8 @@ export function Canvas({ editor, onContextMenu }: Props) {
             dropTarget={drag?.target === b.id}
             editor={editor}
             editing={editing?.id === b.id ? editing : null}
-            groupKind={nodes.get(nodes.get(b.id)!.parent ?? '')?.kind}
+            groupKind={stanceOf(nodes.get(b.id), nodes.get(nodes.get(b.id)!.parent ?? ''))}
+            offStance={!!nodes.get(b.id)!.stance && nodes.get(b.id)!.stance !== nodes.get(nodes.get(b.id)!.parent ?? '')?.kind}
             comments={commentCounts.get(b.id) ?? 0}
             reactions={reactions.get(b.id)}
             me={me}
@@ -457,12 +458,14 @@ interface ClaimProps {
   editor: Editor;
   editing: { id: string; initial?: string } | null;
   groupKind?: string;
+  /** Argues the other way from its group: gets a bar of its own colour above it. */
+  offStance?: boolean;
   comments: number;
   reactions?: Map<string, string[]>;
   me: string;
 }
 
-function ClaimView({ box, node, theme, label, match, offset, selected, dropTarget, editor, editing, groupKind, comments, reactions, me }: ClaimProps) {
+function ClaimView({ box, node, theme, label, match, offset, selected, dropTarget, editor, editing, groupKind, offStance, comments, reactions, me }: ClaimProps) {
   const cls = [
     node.kind === 'sticky' ? 'sticky' : 'claim',
     node.kind === 'claim' && node.parent === null ? 'root' : '',
@@ -523,6 +526,7 @@ function ClaimView({ box, node, theme, label, match, offset, selected, dropTarge
           {node.text || placeholder}
         </div>
       )}
+      {offStance ? <span className={`stance-bar stance-${groupKind}`} aria-hidden="true" /> : null}
       {label ? <span className="node-label">{label}</span> : null}
       {canResize ? (
         <span className="sticky-resize" title="Drag to resize" aria-label="Resize note" onPointerDown={startResize} />

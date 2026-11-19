@@ -1,5 +1,5 @@
 import * as Y from 'yjs';
-import { Comment, Reaction, Connection, DEFAULT_THEME, MapFile, MapNode, GroupKind, NodeStyle, Theme, isClaim, isGroup, STICKY, stickyW } from './types';
+import { Comment, Reaction, Connection, DEFAULT_THEME, MapFile, MapNode, GroupKind, NodeStyle, Theme, isClaim, isGroup, STICKY, stanceOf, stickyW } from './types';
 
 type YNode = Y.Map<unknown>;
 
@@ -389,7 +389,25 @@ export class MapDoc {
 
   /** Switch a group between reason and objection. */
   setGroupKind(id: string, kind: GroupKind): void {
-    if (isGroup(this.get(id))) this.update(id, { kind });
+    if (!isGroup(this.get(id))) return;
+    this.transact(() => {
+      this.update(id, { kind });
+      // A premise that already argued this way now simply agrees with its group.
+      for (const p of this.all()) if (p.parent === id && p.stance === kind) this.update(p.id, { stance: undefined });
+    });
+  }
+
+  /**
+   * Make one premise a reason or an objection. On its own in its group the whole group
+   * changes; beside other premises only this one does, keeping the group as it is.
+   */
+  setPremiseStance(id: string, kind: GroupKind): void {
+    const p = this.get(id);
+    const g = this.get(p?.parent ?? '');
+    if (!p || !g || !isGroup(g)) return;
+    const siblings = this.all().filter((n) => n.parent === g.id);
+    if (siblings.length < 2) this.setGroupKind(g.id, kind);
+    else this.update(id, { stance: kind === g.kind ? undefined : kind });
   }
 
   /** Resize a sticky note, keeping its top-left corner where it is. */
@@ -460,7 +478,7 @@ export class MapDoc {
     if (!isClaim(n) || n!.parent === null) return false;
     const oldGroup = n!.parent;
     this.transact(() => {
-      this.update(id, { parent: null, order: this.orderAfter(null), x: Math.round(x), y: Math.round(y), dx: undefined, dy: undefined });
+      this.update(id, { parent: null, order: this.orderAfter(null), x: Math.round(x), y: Math.round(y), dx: undefined, dy: undefined, stance: undefined });
       this.dropEmptyGroup(oldGroup);
     });
     return true;
@@ -491,11 +509,13 @@ export class MapDoc {
       if (isGroup(n)) {
         this.update(id, { parent: targetId, order: this.orderAfter(targetId), ...reset });
       } else if (isGroup(t)) {
-        this.update(id, { parent: targetId, order: this.orderAfter(targetId), ...reset });
+        // Keep what it argued: a reason dropped among an objection's premises stays a reason.
+        const was = stanceOf(n, oldParent ? this.get(oldParent) : undefined);
+        this.update(id, { parent: targetId, order: this.orderAfter(targetId), ...reset, stance: was && was !== t.kind ? was : undefined });
       } else {
         const group = newId();
         this.put({ id: group, kind: 'reason', parent: targetId, order: this.orderAfter(targetId), text: '' });
-        this.update(id, { parent: group, order: 1, ...reset });
+        this.update(id, { parent: group, order: 1, ...reset, stance: undefined });
       }
       if (t.collapsed) this.update(targetId, { collapsed: undefined });
       if (oldParent && isGroup(this.get(oldParent))) this.dropEmptyGroup(oldParent);
@@ -519,6 +539,7 @@ export class MapDoc {
       link: n.link,
       w: n.w,
       h: n.h,
+      stance: n.stance,
       children: (byParent.get(n.id) ?? []).map(build),
     });
     return top.map((id) => this.get(id)).filter((n): n is MapNode => !!n).map(build);
@@ -540,6 +561,7 @@ export class MapDoc {
         implicit: c.implicit || undefined, collapsed: c.collapsed || undefined,
         style: c.style, note: c.note, link: c.link,
         ...(c.kind === 'sticky' && c.w ? { w: c.w, h: c.h } : {}),
+        ...(c.stance && parent && isGroup(this.get(parent)) && this.get(parent)!.kind !== c.stance ? { stance: c.stance } : {}),
         ...extra,
       });
       for (const ch of c.children ?? []) insert(ch, id);
@@ -641,6 +663,7 @@ export interface ClipNode {
   link?: string;
   w?: number;
   h?: number;
+  stance?: GroupKind;
   children: ClipNode[];
 }
 
