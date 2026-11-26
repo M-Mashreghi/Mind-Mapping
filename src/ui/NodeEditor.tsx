@@ -58,7 +58,7 @@ export function NodeEditor({ editor, text, initial, style }: Props) {
       ref={ref}
       className="claim-text claim-input"
       style={style}
-      dir="auto"
+      dir={style?.direction==='rtl'?'rtl':style?.direction==='ltr'?'ltr':'auto'}
       contentEditable="plaintext-only"
       suppressContentEditableWarning
       spellCheck

@@ -49,7 +49,8 @@ export function textStyle(node: MapNode, theme: Theme): CSSProperties {
     fontWeight: s.bold || (theme.mapStyle === 'bold' && isRoot) ? 700 : isRoot ? 600 : 400,
     fontStyle: s.italic ? 'italic' : 'normal',
     textDecoration: [s.underline ? 'underline' : '', s.strike ? 'line-through' : ''].filter(Boolean).join(' ') || 'none',
-    textAlign: s.align ?? 'center',
+    direction: s.direction,
+    textAlign: s.align ?? (s.direction==='rtl'?'right':s.direction==='ltr'?'left':'center'),
     maxWidth: sticky ? stickyW(node) : size.maxWidth,
     padding: sticky ? `${Math.round(px * 0.9)}px ${Math.round(px * 1.0)}px` : isRoot ? `${Math.round(px * 0.9)}px ${Math.round(px * 1.6)}px` : `${Math.round(px * 0.65)}px ${Math.round(px * 0.85)}px`,
   };

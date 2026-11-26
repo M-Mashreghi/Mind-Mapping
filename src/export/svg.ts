@@ -276,7 +276,7 @@ export async function buildSvg(input: SvgInput): Promise<{ svg: string; width: n
     const y0 = box.y + (box.h - lines.length * lh) / 2 + lh * 0.72;
     const align = (ts.textAlign as string) || 'center';
     lines.forEach((line, i) => {
-      const rtl = isRtl(line);
+      const rtl = n.style?.direction ? n.style.direction==='rtl' : isRtl(line);
       let anchor = 'middle';
       let x = box.x + box.w / 2;
       if (align === 'left') {
@@ -287,7 +287,7 @@ export async function buildSvg(input: SvgInput): Promise<{ svg: string; width: n
         anchor = rtl ? 'start' : 'end';
       }
       parts.push(
-        `<text x="${x}" y="${y0 + i * lh}" text-anchor="${anchor}"${rtl ? ' direction="rtl" unicode-bidi="plaintext"' : ''} font-family="${esc(family)}" font-size="${px}" font-weight="${ts.fontWeight}"${ts.fontStyle === 'italic' ? ' font-style="italic"' : ''}${ts.textDecoration !== 'none' ? ` text-decoration="${ts.textDecoration}"` : ''} fill="${color}">${esc(line)}</text>`,
+        `<text x="${x}" y="${y0 + i * lh}" text-anchor="${anchor}"${n.style?.direction ? ' direction="'+n.style.direction+'" unicode-bidi="embed"' : rtl ? ' direction="rtl" unicode-bidi="plaintext"' : ''} font-family="${esc(family)}" font-size="${px}" font-weight="${ts.fontWeight}"${ts.fontStyle === 'italic' ? ' font-style="italic"' : ''}${ts.textDecoration !== 'none' ? ` text-decoration="${ts.textDecoration}"` : ''} fill="${color}">${esc(line)}</text>`,
       );
     });
     if (sticky) parts.push('</g>');

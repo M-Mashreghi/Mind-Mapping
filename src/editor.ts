@@ -1,6 +1,7 @@
 import { ClipNode, MapDoc, newMapFile } from './model/doc';
 import { MapFile, MapNode, NodeStyle, Snapshot, Theme, FontSize, isClaim, isGroup, isTextNode } from './model/types';
 import { importMindMup } from './model/mindmup';
+import { selectedLayout } from './model/reasoning';
 import { buildSvg, readColors, svgToPng } from './export/svg';
 import { toMarkdown, toPlainText } from './export/outline';
 import { CollabSession, ControlMessage, Peer, PeerUser, Role, deviceIdentity, loadUser, requestAccess, saveUser } from './collab/session';
@@ -1262,11 +1263,35 @@ export class Editor {
     return this.doc.title.replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'Argument map';
   }
 
-  private async svg(embedFonts: boolean) {
+  tidyPreview(id:string) {
+    const ids=new Set(this.doc.subtreeIds(id).filter(k=>k!==id));
+    const nodes=this.doc.all().map(n=>ids.has(n.id)?{...n,dx:undefined,dy:undefined}:n);
+    const t=this.doc.theme;
+    const plan=layoutMap(nodes,n=>this.measure(n,t),t.density,t.lineLabels||nodes.some(n=>(n.kind==='reason'||n.kind==='objection')&&!!n.text.trim()));
+    return [...plan.boxes.values()].filter(b=>ids.has(b.id)).filter(b=>{const old=this.layout.boxes.get(b.id);return old&&(b.x!==old.x||b.y!==old.y);});
+  }
+
+  async exportSelection(kind:'svg'|'png',includeEnds:boolean,copy:boolean) {
+    try {
+      const layout=selectedLayout(this.layout,this.selection,this.doc.allConnections(),includeEnds);
+      const {svg,width,height}=await this.svg(true,layout,false);
+      const bytes=kind==='svg'?new TextEncoder().encode(svg):await svgToPng(svg,width,height);
+      const type=kind==='svg'?'image/svg+xml':'image/png';
+      const blob=new Blob([new Uint8Array(bytes)],{type});
+      if(copy){
+        if(!navigator.clipboard?.write || typeof ClipboardItem==='undefined')throw Error('Clipboard unavailable. Choose Save image.');
+        await navigator.clipboard.write([new ClipboardItem({[type]:blob})]);
+        this.flash('Selection copied.');
+      }else await platform.exportFile(this.baseName()+'-selection.'+kind,bytes,{name:kind.toUpperCase()+' image',extensions:[kind]});
+    }catch(error){this.flash((error as Error).message,'error');}
+  }
+
+  private async svg(embedFonts: boolean,layout=this.layout,background=true) {
     const canvas = document.querySelector('.canvas') ?? document.documentElement;
     return buildSvg({
       nodes: this.doc.all(),
-      layout: this.layout,
+      layout,
+      background,
       theme: this.doc.theme,
       labels: this.labels,
       connections: this.doc.allConnections(),

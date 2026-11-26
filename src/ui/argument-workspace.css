@@ -6,3 +6,11 @@
 .add-below .add-handle{width:auto;min-width:26px;padding-inline:7px;font-size:11px}.argument-workspace table{width:100%;font-size:.86em;border-collapse:collapse}.argument-workspace td,.argument-workspace th{padding:4px;border-bottom:1px solid var(--line);overflow-wrap:anywhere}
 
 .premise-choice{position:absolute;transform:translateX(-50%);z-index:20;display:grid;gap:5px;max-width:280px;padding:10px;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:8px}.premise-choice button{background:var(--surface-2);color:inherit;border:0;padding:6px}
+
+.wire-handle{position:absolute;right:-9px;top:0;display:grid;place-items:center;border:1px solid var(--brand);border-radius:50%;width:23px;height:23px;background:var(--surface);color:var(--brand);cursor:crosshair;opacity:0;touch-action:none}
+.sticky:hover .wire-handle,.sticky.selected .wire-handle{opacity:1}
+.wire-preview,.tidy-preview,.reason-highlight{pointer-events:none}
+.tidy-preview,.reason-highlight{position:absolute;z-index:12;border:2px dashed var(--brand);border-radius:8px;box-sizing:border-box}
+.reason-highlight{border:3px solid var(--brand)}.reason-highlight span{position:absolute;top:100%;background:var(--surface);color:var(--ink);padding:4px 8px;max-width:280px}
+.argument-workspace nav{position:sticky;top:0;background:var(--surface);padding:4px 0;z-index:1}
+.argument-workspace summary{font-weight:600}.argument-workspace button:focus-visible,.argument-workspace summary:focus-visible{outline:2px solid var(--brand);outline-offset:2px}

@@ -45,6 +45,7 @@ interface PanState {
 
 export function Canvas({ editor, onContextMenu }: Props) {
   const ref = useRef<HTMLDivElement>(null);
+  const [wire,setWire]=useState<{source:string;x:number;y:number;target?:string}|null>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
   const dragRef = useRef<DragState | null>(null);
   const panRef = useRef<PanState | null>(null);
@@ -89,6 +90,12 @@ export function Canvas({ editor, onContextMenu }: Props) {
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (e.button !== 0) return;
+    const handle=(e.target as Element).closest<HTMLElement>('[data-wire]');
+    if(handle && !editor.readOnly && !editor.presentation){
+      const p=local(e),source=handle.dataset.wire!;
+      e.preventDefault();editor.select([source]);setWire({source,...editor.screenToMap(p.x,p.y)});
+      e.currentTarget.setPointerCapture(e.pointerId);return;
+    }
     const conn = (e.target as Element).closest<SVGElement>('[data-connection-id]');
     if (conn) {
       e.preventDefault();
@@ -138,6 +145,11 @@ export function Canvas({ editor, onContextMenu }: Props) {
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
+    if(wire){
+      const p=local(e),m=editor.screenToMap(p.x,p.y);
+      const target=document.elementFromPoint(e.clientX,e.clientY)?.closest<HTMLElement>('[data-node-id]')?.dataset.nodeId;
+      setWire({...wire,...m,target:target!==wire.source?target:undefined});return;
+    }
     if (editor.collab) {
       const p = local(e);
       editor.setCursor(editor.screenToMap(p.x, p.y));
@@ -166,6 +178,11 @@ export function Canvas({ editor, onContextMenu }: Props) {
   };
 
   const onPointerUp = (e: React.PointerEvent) => {
+    if(wire){
+      const id=document.elementFromPoint(e.clientX,e.clientY)?.closest<HTMLElement>('[data-node-id]')?.dataset.nodeId;
+      if(!editor.readOnly && id && id!==wire.source)doc.addConnection(wire.source,id);
+      setWire(null);return;
+    }
     const pan = panRef.current;
     if (pan && pan.pointerId === e.pointerId) {
       panRef.current = null;
@@ -250,7 +267,7 @@ export function Canvas({ editor, onContextMenu }: Props) {
       }}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
-      onPointerCancel={onPointerUp}
+      onPointerCancel={()=>{setWire(null);setDrag(null);dragRef.current=null;panRef.current=null;}}
       onDoubleClick={onDoubleClick}
       onContextMenu={onContext}
       onPointerLeave={() => editor.setCursor(null)}
@@ -281,8 +298,9 @@ export function Canvas({ editor, onContextMenu }: Props) {
           if(!to||!from||!target)return null;
           return <><svg className="edges" width="1" height="1" overflow="visible"><line x1={from.x+drag.dx+from.w/2} y1={from.y+drag.dy+from.h/2} x2={to.x+to.w/2} y2={to.y+to.h/2} stroke="var(--brand)" strokeDasharray="5 4"/></svg><span className="idea-drop-preview" style={{left:to.x,top:to.y-27}}>{dropLabel(target,doc.get(drag.ids[0]))}</span></>;
         })()}
+        {wire && layout.boxes.has(wire.source) && <svg className="edges wire-preview" width="1" height="1" overflow="visible"><line x1={layout.boxes.get(wire.source)!.x+layout.boxes.get(wire.source)!.w} y1={layout.boxes.get(wire.source)!.y} x2={wire.x} y2={wire.y} stroke="var(--brand)" strokeWidth="2" strokeDasharray="6 5"/></svg>}
         {groups.map((b) => (
-          <GroupView key={b.id} box={b} node={nodes.get(b.id)!} offset={offsetFor(b.id)} selected={selected.has(b.id)} dropTarget={drag?.target === b.id} />
+          <GroupView key={b.id} box={b} node={nodes.get(b.id)!} offset={offsetFor(b.id)} selected={selected.has(b.id)} dropTarget={drag?.target === b.id || wire?.target===b.id} />
         ))}
         {claims.map((b) => (
           <ClaimView
@@ -560,7 +578,7 @@ function ClaimView({ box, node, theme, label, match, offset, selected, dropTarge
       {editing ? (
         <NodeEditor editor={editor} text={node.text} initial={editing.initial} style={text} />
       ) : (
-        <div className={`claim-text${node.text ? '' : ' placeholder'}`} dir="auto" style={text}>
+        <div className={`claim-text${node.text ? '' : ' placeholder'}`} dir={node.style?.direction??"auto"} style={text}>
           {node.text || placeholder}
         </div>
       )}
@@ -568,6 +586,7 @@ function ClaimView({ box, node, theme, label, match, offset, selected, dropTarge
       {node.questions?.some(q=>!q.answer) && <span title={node.questions.map(q=>q.text).join('\n')}>?</span>}
       {offStance ? <span className={`stance-bar stance-${groupKind}`} aria-hidden="true" /> : null}
       {label ? <span className="node-label">{label}</span> : null}
+      {node.kind==='sticky'&&!editor.readOnly&&!editor.presentation&&!editing&&<span className="wire-handle" data-wire={node.id} title="Drag to connect this note to a box">↗</span>}
       {canResize ? (
         <span className="sticky-resize" title="Drag to resize" aria-label="Resize note" onPointerDown={startResize} />
       ) : null}

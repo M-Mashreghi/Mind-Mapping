@@ -77,13 +77,13 @@ try {
   assert.equal(await evaluate('window.argmapEditor.doc.all().length'), beforeCut);
   const clickLabel = async label => evaluate('Array.from(document.querySelectorAll("button")).find(b=>b.textContent.trim()==='+JSON.stringify(label)+').click()');
   await clickLabel('Workspace');
-  for (const tab of ['Outline','Evidence','Review','Exercise','Build']) {
+  for (const tab of ['Outline','Evidence','Review','Exercise','Output','Build']) {
     await clickLabel(tab);
     await until(()=>evaluate('document.querySelector(".argument-workspace nav button[aria-pressed=true]").textContent === '+JSON.stringify(tab)));
   }
   await evaluate('window.argmapEditor.addSticky(); window.argmapEditor.finishEditing("Review note")');
-  await until(()=>evaluate('!!document.querySelector(".argument-workspace select")'));
-  await evaluate(`const picker=document.querySelector(".argument-workspace select");picker.value=window.argmapEditor.doc.all().find(n=>n.kind==='claim').id;picker.dispatchEvent(new Event('change',{bubbles:true}));`);
+  await until(()=>evaluate('!!document.querySelector(\'select[aria-label="Target box"]\')'));
+  await evaluate(`const picker=document.querySelector(\'select[aria-label="Target box"]\');picker.value=window.argmapEditor.doc.all().find(n=>n.kind==='claim').id;picker.dispatchEvent(new Event('change',{bubbles:true}));`);
   await clickLabel('Attach with dashed line');
   await until(()=>evaluate('!!document.querySelector(\'.connection-line[stroke-dasharray="6 5"]\')'));
   console.log('Chrome passed: workspace tabs and dashed sticky attachment');
