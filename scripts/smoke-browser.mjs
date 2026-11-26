@@ -9,11 +9,11 @@ import WebSocket from 'ws';
 
 const server = await preview({ preview: { host: '127.0.0.1', port: 4173, strictPort: true } });
 const profile = await mkdtemp(join(tmpdir(), 'argmap-chrome-'));
-const browser = spawn('google-chrome', ['--headless', '--disable-dev-shm-usage', '--remote-debugging-port=9222',
+const browser = spawn('google-chrome', ['--headless', '--no-first-run', '--disable-background-networking', '--disable-dev-shm-usage', '--remote-debugging-port=9222',
   '--user-data-dir=' + profile, 'http://127.0.0.1:4173'], { stdio: 'inherit' });
 let socket;
 async function until(check) {
-  for (let i = 0; i < 100; i++) {
+  for (let i = 0; i < 400; i++) {
     const result = await check();
     if (result) return result;
     await delay(100);
