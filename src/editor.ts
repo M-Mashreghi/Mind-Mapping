@@ -852,19 +852,23 @@ export class Editor {
   // ------------------------------------------------------------ drag & drop
 
   /** Drop `ids` at a map point: onto a target node, or nudge them by (ddx, ddy). */
-  drop(ids: string[], targetId: string | null, ddx: number, ddy: number): void {
+  drop(ids: string[], targetId: string | null, ddx: number, ddy: number, detachOnBlank = false): void {
     if (this.readOnly) return this.flashReadOnly();
     if (targetId) {
-      const movable = ids.filter((id) => this.doc.canMove(id, targetId));
+      const movable = ids.filter((id) => this.doc.get(id)?.parent !== targetId && this.doc.canMove(id, targetId));
       if (movable.length) {
         this.doc.transact(() => movable.forEach((id) => this.doc.move(id, targetId)));
         return;
       }
     }
+    // Keep all drop coordinates from the same layout, even when detaching siblings.
+    const boxes = this.layout.boxes;
     this.doc.transact(() => {
       for (const id of ids) {
         // Skip nodes whose ancestor is also being dragged; they move with it.
         if (ids.some((o) => o !== id && this.doc.isAncestor(o, id))) continue;
+        const box = boxes.get(id);
+        if (!targetId && detachOnBlank && box && this.doc.detach(id, box.x + box.w / 2 + ddx, box.y + ddy)) continue;
         this.doc.nudge(id, ddx, ddy);
       }
     });

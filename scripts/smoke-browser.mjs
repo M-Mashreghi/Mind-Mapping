@@ -101,6 +101,34 @@ try {
   await until(()=>evaluate('!!document.querySelector(".wire-preview")'));
   await send('Input.dispatchMouseEvent',{type:'mouseReleased',...to,button:'left',clickCount:1});
   await until(()=>evaluate('window.argmapEditor.doc.allConnections().some(c=>c.from==='+JSON.stringify(fixture.note)+'&&c.to==='+JSON.stringify(fixture.root)+')'));
+  const premises=await evaluate(`(() => {
+    const e=window.argmapEditor;
+    e.loadFile({format:'argument-mapper',version:1,title:'Detach check',nodes:[]});
+    const root=e.doc.addRoot('Conclusion',225,30);
+    const g=e.doc.addGroup(root,'reason','First');
+    const second=e.doc.addPremise(g.groupId,undefined,'Second');
+    e.setView({x:0,y:0,zoom:1});return {...g,second};
+  })()`);
+  const box='[data-node-id="'+premises.second+'"]';
+  const bracket='.group[data-node-id="'+premises.groupId+'"]';
+  const width=await evaluate('document.querySelector('+JSON.stringify(bracket)+').getBoundingClientRect().width');
+  const start=await point('.claim'+box);
+  await send('Input.dispatchMouseEvent',{type:'mouseMoved',...start});
+  const toggle=await point('.claim'+box+' > .stance-switch');
+  for(const expected of ['in-objection','in-reason']){
+    await send('Input.dispatchMouseEvent',{type:'mousePressed',...toggle,button:'left',buttons:1,clickCount:1});
+    await send('Input.dispatchMouseEvent',{type:'mouseReleased',...toggle,button:'left',clickCount:1});
+    await until(()=>evaluate('document.querySelector('+JSON.stringify('.claim'+box)+').classList.contains('+JSON.stringify(expected)+')'));
+  }
+  const end={x:start.x+120,y:start.y+90};
+  await send('Input.dispatchMouseEvent',{type:'mouseMoved',...start});
+  await send('Input.dispatchMouseEvent',{type:'mousePressed',...start,button:'left',buttons:1,clickCount:1});
+  await send('Input.dispatchMouseEvent',{type:'mouseMoved',...end,buttons:1});
+  await until(()=>evaluate('!!document.querySelector(".detach-hint")'));
+  await send('Input.dispatchMouseEvent',{type:'mouseReleased',...end,button:'left',clickCount:1});
+  await until(()=>evaluate('document.querySelector('+JSON.stringify('.claim'+box)+').classList.contains("root")'));
+  assert.ok(await evaluate('document.querySelector('+JSON.stringify(bracket)+').getBoundingClientRect().width')<width);
+  console.log('Chrome passed: hover stance switch in both directions and detached co-premise bracket shrink');
   console.log('Chrome passed: drag handle, live preview and attachment');
   console.log('Chrome passed: workspace tabs and dashed sticky attachment');
   console.log('Chrome passed: Enter opens Add, reason and objection insertion, cut without clipboard.');
