@@ -148,6 +148,9 @@ export const lineLabel = (group: MapNode, theme: Pick<Theme, 'lineLabels'>): str
   group.text.trim() || (theme.lineLabels ? (group.kind === 'objection' ? 'But' : 'Because') : '');
 
 /** Whether a premise supports or opposes, from its own stance or else its group's kind. */
+export const isConclusion = (node: MapNode): boolean =>
+  node.kind === 'claim' && node.parent === null && !node.stance;
+
 export const stanceOf = (premise: MapNode | undefined, group: MapNode | undefined): GroupKind | undefined =>
   premise?.stance ?? (group && (group.kind === 'reason' || group.kind === 'objection') ? group.kind : undefined);
 

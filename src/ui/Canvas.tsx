@@ -11,7 +11,7 @@ function labelWidth(text: string): number {
   }
   return (labelCtx ? labelCtx.measureText(text).width : text.length * 7.5) + 14;
 }
-import { Connection, LineStyle, MapNode, STICKY, Theme, stanceOf } from '../model/types';
+import { Connection, LineStyle, MapNode, STICKY, Theme, isConclusion, stanceOf } from '../model/types';
 import { boxStyle, textStyle, themeVars } from '../theme';
 import { attach, dropLabel } from '../model/workspace';
 import { NodeEditor } from './NodeEditor';
@@ -301,7 +301,7 @@ export function Canvas({ editor, onContextMenu }: Props) {
         </svg>
         {drag?.active && drag.detachHint && (() => {
           const b = layout.boxes.get(drag.ids[0]);
-          return b && <span className="idea-drop-preview detach-hint" style={{left:b.x+drag.dx,top:b.y+drag.dy-28}}>Detach · Shift to keep linked</span>;
+          return b && <span className="idea-drop-preview detach-hint" style={{left:b.x+drag.dx,top:b.y+drag.dy-28}}>Unlink premise · Shift to keep linked</span>;
         })()}
         {drag?.active && drag.target && (() => {
           const to=layout.boxes.get(drag.target), from=layout.boxes.get(drag.ids[0]), target=doc.get(drag.target);
@@ -326,7 +326,7 @@ export function Canvas({ editor, onContextMenu }: Props) {
             editor={editor}
             editing={editing?.id === b.id ? editing : null}
             groupKind={stanceOf(nodes.get(b.id), nodes.get(nodes.get(b.id)!.parent ?? ''))}
-            offStance={!!nodes.get(b.id)!.stance && nodes.get(b.id)!.stance !== nodes.get(nodes.get(b.id)!.parent ?? '')?.kind}
+            offStance={!!nodes.get(b.id)!.parent && !!nodes.get(b.id)!.stance && nodes.get(b.id)!.stance !== nodes.get(nodes.get(b.id)!.parent ?? '')?.kind}
             comments={commentCounts.get(b.id) ?? 0}
             reactions={reactions.get(b.id)}
             me={me}
@@ -497,8 +497,8 @@ function EdgeLabel({ id, kind, x, y, text, own, editing, selected, editor }: {
 function StanceSwitch({ editor, node }: { editor: Editor; node: MapNode }) {
   if (editor.readOnly || editor.presentation || editor.editing) return null;
   const group = node.kind === 'claim' ? editor.doc.get(node.parent) : node;
-  if (!group || (group.kind !== 'reason' && group.kind !== 'objection')) return null;
-  const current = node.kind === 'claim' ? node.stance ?? group.kind : group.kind;
+  const current = stanceOf(node, group);
+  if (!current) return null;
   const next = current === 'reason' ? 'objection' : 'reason';
   const label = 'Change ' + (node.kind === 'claim' ? 'premise' : 'group') + ' to ' + next;
   return <button type="button" className={'stance-switch switch-' + current} title={label} aria-label={label}
@@ -551,7 +551,7 @@ interface ClaimProps {
 function ClaimView({ box, node, theme, label, match, offset, selected, dropTarget, editor, editing, groupKind, offStance, comments, reactions, me }: ClaimProps) {
   const cls = [
     node.kind === 'sticky' ? 'sticky' : 'claim',
-    node.kind === 'claim' && node.parent === null ? 'root' : '',
+    isConclusion(node) ? 'root' : '',
     groupKind === 'reason' ? 'in-reason' : groupKind === 'objection' ? 'in-objection' : '',
     node.implicit ? 'implicit' : '',
     selected ? 'selected' : '',
@@ -611,7 +611,7 @@ function ClaimView({ box, node, theme, label, match, offset, selected, dropTarge
       )}
       {node.evidence?.length ? <button className="node-badge" title={node.evidence.map(v=>[v.source,v.page,v.quote].filter(Boolean).join(' · ')).join('\n')} onClick={()=>window.alert(node.evidence!.map(v=>[v.source,v.page,v.quote].filter(Boolean).join(' · ')).join('\n'))}>Sources ({node.evidence.length})</button>:null}
       {node.questions?.some(q=>!q.answer) && <span title={node.questions.map(q=>q.text).join('\n')}>?</span>}
-      {node.kind === 'claim' && node.parent && <StanceSwitch editor={editor} node={node} />}
+      {node.kind === 'claim' && (node.parent || node.stance) && <StanceSwitch editor={editor} node={node} />}
       {offStance ? <span className={`stance-bar stance-${groupKind}`} aria-hidden="true" /> : null}
       {label ? <span className="node-label">{label}</span> : null}
       {node.kind==='sticky'&&!editor.readOnly&&!editor.presentation&&!editing&&<span className="wire-handle" data-wire={node.id} title="Drag to connect this note to a box">↗</span>}

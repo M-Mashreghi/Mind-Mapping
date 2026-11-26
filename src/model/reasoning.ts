@@ -60,7 +60,10 @@ export function branchProse(doc:MapDoc,root:string){
       for(const p of premises)if(doc.children(p.id).length)visit(p.id,group.kind==='objection'?'Discussion of the objection — ':'Further support or objections to — ');
     }
   }
-  visit(root,'The conclusion is: ');return paragraphs.join('\n\n');
+  const start = doc.get(root);
+  const opening = start?.parent === null && start.stance ? 'Unlinked '+start.stance+': ' : 'The conclusion is: ';
+  visit(root,opening);
+  return paragraphs.join('\n\n');
 }
 
 export function suggest(doc:MapDoc,id:string,author:string,proposal:Proposal){

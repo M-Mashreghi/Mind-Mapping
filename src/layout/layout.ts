@@ -1,4 +1,4 @@
-import { MapNode, Theme, isGroup, lineLabel } from '../model/types';
+import { MapNode, Theme, isConclusion, isGroup, lineLabel } from '../model/types';
 
 export interface Size {
   w: number;
@@ -351,7 +351,22 @@ export function computeLabels(
   const out = new Map<string, string>();
   if (mode === 'none') return out;
   const byId = new Map(nodes.map((n) => [n.id, n]));
-  const visibleClaims = nodes.filter((n) => n.kind === 'claim' && layout.boxes.has(n.id));
+  // A floating premise and its branch have no place in a conclusion's numbering yet.
+  const floating = new Set<string>();
+  const children = new Map<string, string[]>();
+  for (const node of nodes) if (node.parent) {
+    const siblings = children.get(node.parent) ?? [];
+    siblings.push(node.id);
+    children.set(node.parent, siblings);
+  }
+  const pending = nodes.filter(n => n.kind === 'claim' && !n.parent && n.stance).map(n => n.id);
+  while (pending.length) {
+    const id = pending.pop()!;
+    if (floating.has(id)) continue;
+    floating.add(id);
+    for (const child of children.get(id) ?? []) pending.push(child);
+  }
+  const visibleClaims = nodes.filter((n) => n.kind === 'claim' && !floating.has(n.id) && layout.boxes.has(n.id));
   const claimDepth = (n: MapNode): number => {
     let d = 1;
     let cur = n;
@@ -393,6 +408,6 @@ export function computeLabels(
     out.set(n.id, prefix);
     claimChildren(n.id).forEach((c, i) => walk(c, `${prefix}.${i + 1}`));
   };
-  (kids.get(null) ?? []).filter((n) => n.kind === 'claim').forEach((r, i) => walk(r, String(i + 1)));
+  (kids.get(null) ?? []).filter(isConclusion).forEach((r, i) => walk(r, String(i + 1)));
   return out;
 }

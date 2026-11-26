@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import { FontSize, MapNode, Theme, stickyW } from './model/types';
+import { FontSize, MapNode, Theme, isConclusion, stickyW } from './model/types';
 
 import '@fontsource/inter/400.css';
 import '@fontsource/inter/400-italic.css';
@@ -34,7 +34,7 @@ export const FONT_SIZES: Record<FontSize, { px: number; label: string; maxWidth:
 /** Text layout properties shared by the measuring probe and the rendered node. */
 export function textStyle(node: MapNode, theme: Theme): CSSProperties {
   const s = node.style ?? {};
-  const isRoot = node.kind === 'claim' && node.parent === null;
+  const isRoot = isConclusion(node);
   // The main claim reads one size larger than the rest unless it has its own size.
   const order: FontSize[] = ['xs', 's', 'm', 'l', 'xl'];
   const rootSize = order[Math.min(order.length - 1, order.indexOf(theme.fontSize) + (theme.mapStyle === 'bold' ? 2 : 1))];
@@ -59,7 +59,7 @@ export function textStyle(node: MapNode, theme: Theme): CSSProperties {
 /** Box colours for a node, from its own style, then the theme, then CSS defaults. */
 export function boxStyle(node: MapNode, theme: Theme): CSSProperties {
   const s = node.style ?? {};
-  const isRoot = node.kind === 'claim' && node.parent === null;
+  const isRoot = isConclusion(node);
   const out: CSSProperties = {};
   const fill = s.fill || (isRoot ? theme.root.fill : '');
   const border = s.border || (isRoot ? theme.root.border : '');

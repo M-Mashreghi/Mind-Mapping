@@ -13,7 +13,7 @@ nested rebuttals, then share the map with people on your network.
 3. Add a sticky note for an idea you have yet to place. Drag its corner arrow onto a box for a dashed annotation. To use the note as evidence in the structure, select it, open **Workspace → Build**, choose a target claim and choose **Convert note to a reason**.
 4. Save the editable map as an `.amap` file. To share part of it in a slide, Shift-click the boxes and open **Workspace → Output → Selection image**.
 
-**Move or detach a premise.** Drop a premise on empty canvas to make it an independent claim. Its children move with it and the original bracket resizes. Hold Shift while releasing to keep the premise attached. Undo restores its previous position and relationship.
+**Move or detach a premise.** Drop a premise on empty canvas to unlink it. A free reason stays green and a free objection stays red, without a conclusion number or a line to its former conclusion. Drop it onto a claim to attach it again. To recover a box previously turned into a conclusion by version 0.5.1, select it and choose **Workspace → Build → Make unlinked reason**. Its children move with it and the original bracket resizes. Hold Shift while releasing to keep the premise attached. Undo restores its previous position and relationship.
 
 **Switch sides.** Hover over a premise and click its green + or red − switch. With several co-premises this changes only the hovered premise. Hover over the group's bracket to switch the whole group.
 
