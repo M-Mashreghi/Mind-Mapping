@@ -137,6 +137,36 @@ try {
   await send('Input.dispatchMouseEvent',{type:'mouseMoved',...parentPoint,buttons:1});
   await send('Input.dispatchMouseEvent',{type:'mouseReleased',...parentPoint,button:'left',clickCount:1});
   await until(()=>evaluate('window.argmapEditor.doc.get(window.argmapEditor.doc.get('+JSON.stringify(premises.second)+').parent)?.kind === "reason"'));
+  const multi=await evaluate(`(() => {
+    const e=window.argmapEditor;
+    e.loadFile({format:'argument-mapper',version:1,title:'Selection',nodes:[]});
+    const a=e.doc.addRoot('Piece A',120,100),b=e.doc.addRoot('Piece B',360,100);
+    e.setView({x:0,y:0,zoom:1});return {a,b};
+  })()`);
+  const region=await evaluate(`(() => {
+    const boxes=Array.from(document.querySelectorAll('.canvas .claim'),el=>el.getBoundingClientRect());
+    return {x:Math.min(...boxes.map(b=>b.left))-6,y:Math.min(...boxes.map(b=>b.top))-6,
+      right:Math.max(...boxes.map(b=>b.right))+6,bottom:Math.max(...boxes.map(b=>b.bottom))+6};
+  })()`);
+  await send('Input.dispatchMouseEvent',{type:'mousePressed',x:region.x,y:region.y,button:'left',buttons:1,clickCount:1});
+  await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:region.right,y:region.bottom,buttons:1});
+  await until(()=>evaluate('document.querySelectorAll(".canvas .claim.selected").length===2'));
+  await send('Input.dispatchMouseEvent',{type:'mouseReleased',x:region.right,y:region.bottom,button:'left',clickCount:1});
+  await until(()=>evaluate('window.argmapEditor.selection.length===2'));
+  const pa=await point('.claim[data-node-id="'+multi.a+'"]');
+  await send('Input.dispatchMouseEvent',{type:'mousePressed',...pa,button:'left',buttons:1,clickCount:1});
+  await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:pa.x+24,y:pa.y+32,buttons:1});
+  await send('Input.dispatchMouseEvent',{type:'mouseReleased',x:pa.x+24,y:pa.y+32,button:'left',clickCount:1});
+  await until(()=>evaluate('window.argmapEditor.doc.get('+JSON.stringify(multi.b)+').x===384'));
+  await evaluate('(() => {const s=document.querySelector(".multi-selection select");s.value='+JSON.stringify(multi.a)+';s.dispatchEvent(new Event("change",{bubbles:true}));})()');
+  await until(()=>evaluate('window.argmapEditor.doc.get('+JSON.stringify(multi.b)+').parent!==null'));
+  const pb=await point('.claim[data-node-id="'+multi.b+'"]');
+  await send('Input.dispatchMouseEvent',{type:'mousePressed',...pb,button:'right',buttons:2,clickCount:1});
+  await send('Input.dispatchMouseEvent',{type:'mouseReleased',...pb,button:'right',clickCount:1});
+  await until(()=>evaluate('!!document.querySelector(".context-menu")'));
+  await evaluate('Array.from(document.querySelectorAll(".context-menu .menu-item")).find(el=>el.textContent.includes("Make Ultimate Conclusion")).click()');
+  await until(()=>evaluate('!!document.querySelector('+JSON.stringify('.claim.root[data-node-id="'+multi.b+'"]')+')'));
+  console.log('Chrome passed: rectangle selection, multi-drag, join and right-click promotion');
   console.log('Chrome passed: floating green premise without conclusion badge, then drag to reconnect');
   console.log('Chrome passed: hover stance switch in both directions and detached co-premise bracket shrink');
   console.log('Chrome passed: drag handle, live preview and attachment');

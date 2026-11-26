@@ -17,6 +17,15 @@ nested rebuttals, then share the map with people on your network.
 
 **Switch sides.** Hover over a premise and click its green + or red − switch. With several co-premises this changes only the hovered premise. Hover over the group's bracket to switch the whole group.
 
+### Work with several boxes
+
+Choose **Select (V)** and drag from empty canvas to draw a selection rectangle around claims and sticky notes. Shift-drag another rectangle to extend the selection, or Shift-click a box to toggle it. Escape cancels a rectangle in progress. Use **Pan (H)** to drag the canvas.
+
+- Drag any selected box to move the selection together. On blank canvas a multi-box move keeps existing relationships. Use **Detach** to unlink the selected premises while preserving their colors and children.
+- Drop the selection on another claim or bracket to attach branches there. To join two already selected pieces, choose the destination in **Join to…**. A selected parent carries its descendants with it.
+- **Delete**, copy, cut and paste operate on the selection. Dashed links between copied boxes are included. Use Undo to reverse a grouped edit.
+- Right-click a reason or objection and choose **Make Ultimate Conclusion** to make it a top-level conclusion with its existing subtree. On a bracket with multiple co-premises, the same action creates a new conclusion above that group. **Detach** leaves a floating colored premise.
+
 ## Find a tool
 
 | Workspace tab | What you can do |

@@ -526,7 +526,7 @@ export class MapDoc {
         this.update(id, { parent: targetId, order: this.orderAfter(targetId), ...reset, stance: was && was !== t.kind ? was : undefined });
       } else {
         const group = newId();
-        this.put({ id: group, kind: oldParent === null ? n.stance ?? 'reason' : 'reason', parent: targetId, order: this.orderAfter(targetId), text: '' });
+        this.put({ id: group, kind: stanceOf(n, this.get(oldParent)) ?? 'reason', parent: targetId, order: this.orderAfter(targetId), text: '' });
         this.update(id, { parent: group, order: 1, ...reset, stance: undefined });
       }
       if (t.collapsed) this.update(targetId, { collapsed: undefined });
@@ -538,10 +538,35 @@ export class MapDoc {
   // ------------------------------------------------------------- clipboard
 
   /** Serialise the selected subtrees (dropping any selected node already inside another). */
+  selectionRoots(ids: string[]): string[] {
+    const chosen = new Set(ids);
+    return [...chosen].filter(id => {
+      const node = this.get(id);
+      if (!node) return false;
+      let parent = node.parent;
+      const visited = new Set<string>();
+      while (parent && !visited.has(parent)) {
+        if (chosen.has(parent)) return false;
+        visited.add(parent);
+        parent = this.get(parent)?.parent ?? null;
+      }
+      return true;
+    });
+  }
+
   copy(ids: string[]): ClipNode[] {
-    const top = ids.filter((id) => !ids.some((o) => o !== id && this.isAncestor(o, id)));
+    const top = this.selectionRoots(ids);
     const byParent = this.indexByParent();
+    const included = new Set(top.flatMap(id => this.subtreeIds(id)));
+    const links = new Map<string,string[]>();
+    for (const c of this.allConnections()) if (included.has(c.from) && included.has(c.to)) {
+      const targets = links.get(c.from) ?? [];
+      targets.push(c.to);
+      links.set(c.from,targets);
+    }
     const build = (n: MapNode): ClipNode => ({
+      sourceId: n.id,
+      linkedTargets: links.get(n.id),
       kind: n.kind,
       text: n.text,
       implicit: n.implicit,
@@ -552,7 +577,7 @@ export class MapDoc {
       link: n.link,
       w: n.w,
       h: n.h,
-      stance: n.stance,
+      stance: n.kind === 'claim' && top.includes(n.id) ? stanceOf(n,this.get(n.parent)) : n.stance,
       children: (byParent.get(n.id) ?? []).map(build),
     });
     return top.map((id) => this.get(id)).filter((n): n is MapNode => !!n).map(build);
@@ -567,8 +592,12 @@ export class MapDoc {
   paste(clip: ClipNode[], targetId: string | null, x = 0, y = 0): string[] {
     const out: string[] = [];
     const target = this.get(targetId);
+    const pastedIds = new Map<string,string>();
+    const connections: [string,string][] = [];
     const insert = (c: ClipNode, parent: string | null, extra: Partial<MapNode> = {}): string => {
       const id = newId();
+      if (c.sourceId) pastedIds.set(c.sourceId,id);
+      if (Array.isArray(c.linkedTargets)) for (const target of c.linkedTargets) connections.push([id,target]);
       this.put({
         id, kind: c.kind, parent, order: this.orderAfter(parent), text: c.text ?? '',
         implicit: c.implicit || undefined, collapsed: c.collapsed || undefined,
@@ -607,6 +636,10 @@ export class MapDoc {
           }
           out.push(insert(c, claimId));
         }
+      }
+      for (const [from,originalTarget] of connections) {
+        const to = pastedIds.get(originalTarget);
+        if (to) this.addConnection(from,to);
       }
       if (isClaim(target) && target!.collapsed) this.update(target!.id, { collapsed: undefined });
     });
@@ -677,6 +710,8 @@ export interface ClipNode extends Pick<MapNode, 'evidence'|'questions'|'review'|
   w?: number;
   h?: number;
   stance?: GroupKind;
+  sourceId?: string;
+  linkedTargets?: string[];
   children: ClipNode[];
 }
 

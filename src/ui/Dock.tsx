@@ -26,7 +26,7 @@ export function Dock({ editor }: { editor: Editor }) {
   return (
     <div ref={ref} className="dock" role="toolbar" aria-label="Tools" onPointerDown={(e) => e.stopPropagation()}>
       <div className="dock-group">
-        <button className={`dock-btn${editor.tool === 'select' ? ' on' : ''}`} title="Select and move (V)" aria-label="Select tool" aria-pressed={editor.tool === 'select'}
+        <button className={`dock-btn${editor.tool === 'select' ? ' on' : ''}`} title="Select and move · Drag on empty canvas to select boxes (V)" aria-label="Select tool" aria-pressed={editor.tool === 'select'}
           onClick={() => editor.setTool('select')}>
           <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
             <path d="M4 3l11 6.2-4.8 1.1L8 15z" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />

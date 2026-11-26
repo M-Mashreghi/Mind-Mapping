@@ -222,6 +222,26 @@ export function App() {
         ) : (
           <>
         <AddHandles editor={editor} />
+        {editor.selection.length > 1 && <div className="multi-selection" role="toolbar" aria-label="Selected boxes">
+          <strong>{editor.selection.length} selected</strong>
+          {!editor.readOnly && <>
+            <button onClick={()=>editor.detach()} disabled={!editor.selection.some(id=>{const n=editor.doc.get(id);return n?.kind==='claim' && n.parent;})}>Detach</button>
+            <select aria-label="Join other selected branches to" value="" onChange={ev=>{
+              const target=ev.currentTarget.value;
+              if (target && !editor.joinBranches(editor.selection.filter(id=>id!==target),target)) editor.flash('Choose a valid destination.');
+            }}>
+              <option value="">Join to…</option>
+              {editor.selection.map((id,i)=>{
+                const n=editor.doc.get(id);
+                const others=editor.doc.selectionRoots(editor.selection.filter(k=>k!==id));
+                const valid=n && n.kind!=='sticky' && others.every(k=>editor.doc.get(k)?.parent===id || editor.doc.canMove(k,id));
+                return <option key={id} value={id} disabled={!valid}>{i+1}. {n?.text || n?.kind || 'Box'}</option>;
+              })}
+            </select>
+            <button onClick={()=>editor.deleteSelection()}>Delete</button>
+          </>}
+          <button onClick={()=>editor.clearSelection()} aria-label="Clear selection">×</button>
+        </div>}
         <NodeToolbar editor={editor} onMore={(x, y) => setMenu({ kind: 'node', x, y })} />
         {editor.find ? <FindBar editor={editor} /> : null}
 

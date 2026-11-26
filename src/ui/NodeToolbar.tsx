@@ -21,7 +21,7 @@ export function NodeToolbar({ editor, onMore }: { editor: Editor; onMore: (x: nu
   const id = editor.primary;
   const box = id ? editor.layout.boxes.get(id) : undefined;
   const node = editor.doc.get(id);
-  if (!box || !node || editor.editing || editor.readOnly) return null;
+  if (!box || !node || editor.editing || editor.readOnly || editor.selection.length > 1) return null;
 
   const { zoom, x, y } = editor.view;
   const half = width / 2 + 8;

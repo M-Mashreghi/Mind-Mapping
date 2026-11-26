@@ -98,6 +98,8 @@ const list: Command[] = [
   },
   { id: 'edit.toReason', label: 'Make it a reason', run: (ed) => ed.convertGroup('reason'), enabled: selectionHasGroup },
   { id: 'edit.toObjection', label: 'Make it an objection', run: (ed) => ed.convertGroup('objection'), enabled: selectionHasGroup },
+  { id: 'edit.conclusion', label: 'Make Ultimate Conclusion', run: ed => ed.makeConclusion(),
+    enabled: ed => { const n = ed.doc.get(ed.primary); return !!n && !ed.readOnly && (isGroup(n) || (n.kind === 'claim' && !!(n.parent || n.stance))); } },
   { id: 'edit.detach', label: 'Detach node', shortcut: 'D', run: (ed) => ed.detach(), enabled: selectionHasPremise },
   { id: 'edit.resetPosition', label: 'Reset node position', run: (ed) => ed.resetPosition(), enabled: hasSelection },
   { id: 'edit.find', label: 'Find…', shortcut: 'Ctrl+F', run: (ed) => ed.openFind() },
@@ -259,6 +261,7 @@ export const menus: { label: string; items: MenuItem[] }[] = [
 ];
 
 export const nodeContextMenu: MenuItem[] = [
+  'edit.conclusion', '-',
   'insert.reason', 'insert.objection', 'insert.child', 'insert.sibling', 'insert.parent', '-',
   'edit.text', 'edit.lineLabel', 'edit.note', 'edit.link', 'edit.implicit', 'edit.toReason', 'edit.toObjection', '-',
   { label: 'Node style', items: ['edit.copyStyle', 'edit.pasteStyle', 'edit.resetStyle'] },
