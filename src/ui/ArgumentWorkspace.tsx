@@ -47,6 +47,7 @@ export function ArgumentWorkspace({editor:e, close}:{editor:Editor;close:()=>voi
     {off && <button onClick={()=>setOff('')}>Restore assumption</button>}
     {tab==='Build' && <>
       <h3>{n ? name(n.id) : 'Select a claim or sticky note on the map'}</h3>
+      {!n&&write&&<button onClick={()=>e.addRoot()}>Start a claim</button>}
       <fieldset disabled={!write}>
       {n?.kind==='claim' && <>
         <button onClick={()=>edit(attach(d,n.id,'reason',''))}>Give a reason</button>

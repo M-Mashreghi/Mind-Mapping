@@ -72,3 +72,25 @@ it('renders before and after entries for saved versions',async()=>{
 it('lets a teacher select claims for a downloadable worksheet',async()=>{
   await click('Exercise');const download=Array.from(host.querySelectorAll('button')).find(b=>b.textContent==='Download worksheet')!;expect(download.disabled).toBe(true);await act(async()=>host.querySelector<HTMLInputElement>('input[type=checkbox]')!.click());expect(download.disabled).toBe(false);
 });
+
+it('adds a causal critique through the review panel',async()=>{
+  await click('Review');await click('Could another factor explain the outcome?');
+  expect(editor.doc.get(premise)?.questions?.[0].text).toBe('Could another factor explain the outcome?');
+});
+it('submits and accepts new wording without modifying it before acceptance',async()=>{
+  await click('Review');await change(host.querySelector<HTMLTextAreaElement>('[aria-label="Suggested wording"]')!,'Revised reason');
+  await click('Submit suggestion');expect(editor.doc.get(premise)?.text).toBe('First premise');await click('Accept');expect(editor.doc.get(premise)?.text).toBe('Revised reason');
+});
+it('converts the selected sticky from its Build control and keeps its identity',async()=>{
+  const id=editor.doc.addSticky('Site notes');await select(id);
+  await change(host.querySelector<HTMLSelectElement>('[aria-label="Target box"]')!,claim);
+  await click('Convert note to a reason');expect(editor.doc.get(id)?.kind).toBe('claim');expect(editor.doc.get(id)?.text).toBe('Site notes');
+});
+it('edits the generated draft without changing claim wording',async()=>{
+  await select(claim);await click('Output');await click('Draft from selected claim');
+  const draft=host.querySelector<HTMLTextAreaElement>('[aria-label="Editable argument draft"]')!;expect(draft.value).toContain('First premise');await change(draft,'My final draft');expect(editor.doc.get(claim)?.text).toBe('Conclusion');
+});
+it('passes selected image format and endpoint policy to export',async()=>{
+  const save=vi.spyOn(editor,'exportSelection').mockResolvedValue(undefined);await click('Output');
+  const selects=host.querySelectorAll('select');await change(selects[0],'include');await change(selects[1],'svg');await click('Save image');expect(save).toHaveBeenCalledWith('svg',true,false);
+});
