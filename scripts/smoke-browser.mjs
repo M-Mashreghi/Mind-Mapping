@@ -77,15 +77,31 @@ try {
   assert.equal(await evaluate('window.argmapEditor.doc.all().length'), beforeCut);
   const clickLabel = async label => evaluate('Array.from(document.querySelectorAll("button")).find(b=>b.textContent.trim()==='+JSON.stringify(label)+').click()');
   await clickLabel('Workspace');
-  for (const tab of ['Outline','Evidence','Review','Exercise','Build']) {
+  for (const tab of ['Outline','Evidence','Review','Exercise','Output','Build']) {
     await clickLabel(tab);
     await until(()=>evaluate('document.querySelector(".argument-workspace nav button[aria-pressed=true]").textContent === '+JSON.stringify(tab)));
   }
   await evaluate('window.argmapEditor.addSticky(); window.argmapEditor.finishEditing("Review note")');
-  await until(()=>evaluate('!!document.querySelector(".argument-workspace select")'));
-  await evaluate(`const picker=document.querySelector(".argument-workspace select");picker.value=window.argmapEditor.doc.all().find(n=>n.kind==='claim').id;picker.dispatchEvent(new Event('change',{bubbles:true}));`);
+  await until(()=>evaluate('!!document.querySelector(\'select[aria-label="Target box"]\')'));
+  await evaluate(`const picker=document.querySelector(\'select[aria-label="Target box"]\');picker.value=window.argmapEditor.doc.all().find(n=>n.kind==='claim').id;picker.dispatchEvent(new Event('change',{bubbles:true}));`);
   await clickLabel('Attach with dashed line');
   await until(()=>evaluate('!!document.querySelector(\'.connection-line[stroke-dasharray="6 5"]\')'));
+  await evaluate(`document.querySelector('[aria-label="Close workspace"]').click()`);
+  const fixture=await evaluate(`(() => {
+    const e=window.argmapEditor;
+    const root=e.doc.addRoot('Drop target',120,85), note=e.doc.addSticky('Drag me',420,80);
+    e.select([note]); e.setView({x:0,y:0,zoom:1});
+    return {root,note};
+  })()`);
+  const point = async(selector)=>evaluate('(() => {const r=document.querySelector('+JSON.stringify(selector)+').getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2};})()');
+  const from=await point('[data-wire="'+fixture.note+'"]'), to=await point('.claim[data-node-id="'+fixture.root+'"]');
+  await send('Input.dispatchMouseEvent',{type:'mouseMoved',...from});
+  await send('Input.dispatchMouseEvent',{type:'mousePressed',...from,button:'left',buttons:1,clickCount:1});
+  await send('Input.dispatchMouseEvent',{type:'mouseMoved',...to,buttons:1});
+  await until(()=>evaluate('!!document.querySelector(".wire-preview")'));
+  await send('Input.dispatchMouseEvent',{type:'mouseReleased',...to,button:'left',clickCount:1});
+  await until(()=>evaluate('window.argmapEditor.doc.allConnections().some(c=>c.from==='+JSON.stringify(fixture.note)+'&&c.to==='+JSON.stringify(fixture.root)+')'));
+  console.log('Chrome passed: drag handle, live preview and attachment');
   console.log('Chrome passed: workspace tabs and dashed sticky attachment');
   console.log('Chrome passed: Enter opens Add, reason and objection insertion, cut without clipboard.');
 } finally {

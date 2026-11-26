@@ -6,6 +6,7 @@ export type FontSize = 'xs' | 's' | 'm' | 'l' | 'xl';
 
 /** Per-node overrides of the map theme. */
 export interface NodeStyle {
+  direction?: 'ltr' | 'rtl';
   fill?: string;
   border?: string;
   color?: string;
@@ -75,7 +76,10 @@ export interface Connection {
 }
 
 /** A comment left on a node, usually by a collaborator. */
+export type Proposal = { kind: 'wording'; before: string; after: string } | { kind: 'joint'; before: string | null; group: string };
+
 export interface Comment {
+  proposal?: Proposal;
   id: string;
   node: string;
   author: string;

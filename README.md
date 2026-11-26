@@ -4,13 +4,38 @@ Free, open-source argument mapping for the desktop. Lay out a claim, the reasons
 support it and the objections against it, with co-premises, hidden assumptions and
 nested rebuttals, then share the map with people on your network.
 
-> Status: early development. The editor, styling, notes, export, Windows/Linux/macOS
-> installers, live LAN collaboration and Google Drive are in place. See the
-> [roadmap](docs/ROADMAP.md) for what comes next: presenting, evaluating arguments and more.
+[Download the latest release](https://github.com/M-Mashreghi/Mind-Mapping/releases/latest)
+
+## Make your first argument map
+
+1. Double-click **Main claim** and enter a conclusion, for example “Our team should run a four-day-week trial.”
+2. Select the claim and choose **Reason**. Enter one reason and press Enter to finish. Use **Objection** to add a counterargument. Use **Reply** on an objection to answer it.
+3. Add a sticky note for an idea you have yet to place. Drag its corner arrow onto a box for a dashed annotation. To use the note as evidence in the structure, select it, open **Workspace → Build**, choose a target claim and choose **Convert note to a reason**.
+4. Save the editable map as an `.amap` file. To share part of it in a slide, Shift-click the boxes and open **Workspace → Output → Selection image**.
+
+## Find a tool
+
+| Workspace tab | What you can do |
+| --- | --- |
+| Build | Add independent reasons or joint premises, capture ideas, reuse a claim, choose a box's writing direction and preview a branch layout. |
+| Outline | Edit claims as a text outline while the drawing updates. |
+| Evidence | Attach a source, page and quotation or turn a selected passage into a claim. |
+| Review | Ask critique questions, check circular support, preview suggestions on the canvas, focus a branch and compare saved versions. |
+| Exercise | Hide selected claims and relationships in a printable worksheet. |
+| Output | Generate an editable branch draft, or copy and save a transparent PNG or SVG of the selection. |
+
+### Working with the 0.5 tools
+
+- **Arrange one branch.** In **Build → Box direction and layout**, preview the positions of the selected claim’s descendants. Apply the layout or cancel. The selected claim stays anchored.
+- **Mixed-language maps.** Select each box separately and choose Automatic, Right to left or Left to right. SVG and PDF respect the saved direction.
+- **Critique a claim.** In **Review → Critique cards**, pick Causation, Analogy, Authority or Generalization. Click a question to attach it to the selected box.
+- **Check circular reasoning.** Choose **Trace support cycles** to trace support through reused claims. Click a reported path to highlight its boxes and inference groups. Sticky annotations are excluded.
+- **Suggest a revision.** Collaborators with editing access can submit replacement wording or a proposed joint premise. Preview the proposal on the map. The host can accept or reject it. A wording change made since submission must be reviewed again.
+- **Prepare a handout or slide.** In **Output**, draft prose from a claim and edit it before copying. For an image, choose whether to omit crossing connections or include their endpoints. Use **Save image** if your clipboard does not accept the chosen format.
 
 ## Download
 
-Installers are built by GitHub Actions for every release:
+Choose the file for your platform on the [releases page](https://github.com/M-Mashreghi/Mind-Mapping/releases/latest).
 
 - **Windows:** `Argument-Mapper-Setup-<version>.exe` (installer) or `Argument-Mapper-Portable-<version>.exe` (no install needed)
 - **Linux:** `Argument-Mapper-<version>-x86_64.AppImage` (make it executable and run it) or `Argument-Mapper-<version>-amd64.deb` (`sudo apt install ./Argument-Mapper-*.deb`)
@@ -141,10 +166,10 @@ The full list is under **Help → Keyboard shortcuts** (Ctrl+/).
 
 ## Development
 
-Requires Node.js 20 or newer.
+CI builds and tests the project on Node.js 22.
 
 ```bash
-npm install
+npm ci
 npm run dev        # editor in the browser at http://localhost:5173
 npm start          # build and run the desktop app (Electron)
 npm test           # unit tests

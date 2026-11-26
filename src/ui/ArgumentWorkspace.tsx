@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Editor } from '../editor';
+import { ReasoningTools } from './ReasoningTools';
+import { promoteSticky } from '../model/reasoning';
 import { affected, attach, breadcrumb, changes, challenge, exercise, addExcerpt, jump, reuse, splitClaim, type Relation } from '../model/workspace';
 import { isGroup, stanceOf } from '../model/types';
 import './argument-workspace.css';
@@ -25,7 +27,7 @@ export function ArgumentWorkspace({editor:e, close}:{editor:Editor;close:()=>voi
     const sel=['data-node-id','data-edge','data-from','data-to'].map(key=>'.canvas ['+key+'="'+escaped+'"]').join(',');
     return visible&&!visible.has(v.id) ? [sel+'{visibility:hidden}'] : dim.has(v.id) ? [sel+'{opacity:.22}'] : [];
   }).join('');
-  const targetPicker=(allow:(id:string)=>boolean)=> <label>Target box<select value={target} onChange={ev=>setTarget(ev.target.value)}><option value="">Choose a box…</option>{nodes.filter(v=>allow(v.id)).map(v=><option key={v.id} value={v.id}>{name(v.id)}</option>)}</select></label>;
+  const targetPicker=(allow:(id:string)=>boolean)=> <label>Target box<select aria-label="Target box" value={target} onChange={ev=>setTarget(ev.target.value)}><option value="">Choose a box…</option>{nodes.filter(v=>allow(v.id)).map(v=><option key={v.id} value={v.id}>{name(v.id)}</option>)}</select></label>;
   const relationPicker=<label>Relationship<select value={relation} onChange={ev=>setRelation(ev.target.value as Relation)}><option value="reason">Supports this claim</option><option value="objection">Challenges this claim</option>{n?.parent && <><option value="independent">Another independent argument for the same conclusion</option><option value="together">Works only with this premise</option></>}</select></label>;
   const openLink=(value:string)=>{
     const id=new URLSearchParams(value.slice(value.indexOf('#')+1)).get('node');
@@ -39,11 +41,13 @@ export function ArgumentWorkspace({editor:e, close}:{editor:Editor;close:()=>voi
   return <aside className="argument-workspace" aria-label="Argument workspace">
     {hideCss && <style>{hideCss}</style>}
     <header><strong>Argument workspace</strong><button onClick={close} aria-label="Close workspace">×</button></header>
-    <nav>{['Build','Outline','Evidence','Review','Exercise'].map(t=><button key={t} aria-pressed={tab===t} onClick={()=>setTab(t)}>{t}</button>)}</nav>
+    <nav>{['Build','Outline','Evidence','Review','Exercise','Output'].map(t=><button key={t} aria-pressed={tab===t} onClick={()=>setTab(t)}>{t}</button>)}</nav>
+    {(tab==='Build'||tab==='Review'||tab==='Output')&&<ReasoningTools key={tab} section={tab} editor={e}/>}
     {focus && <div>Branch: {breadcrumb(d,focus).map(v=>v.text||v.kind).join(' › ')} <button onClick={()=>setFocus('')}>Show full map</button></div>}
     {off && <button onClick={()=>setOff('')}>Restore assumption</button>}
     {tab==='Build' && <>
-      <h3>{n ? name(n.id) : 'Select a box'}</h3>
+      <h3>{n ? name(n.id) : 'Select a claim or sticky note on the map'}</h3>
+      {!n&&write&&<button onClick={()=>e.addRoot()}>Start a claim</button>}
       <fieldset disabled={!write}>
       {n?.kind==='claim' && <>
         <button onClick={()=>edit(attach(d,n.id,'reason',''))}>Give a reason</button>
@@ -53,7 +57,7 @@ export function ArgumentWorkspace({editor:e, close}:{editor:Editor;close:()=>voi
         <details><summary>Reuse claim elsewhere</summary>{targetPicker(id=>id!==n.id&&d.get(id)?.kind==='claim')}<button disabled={!target} onClick={()=>reuse(d,n.id,target)}>Use as a reason there</button>{n.sharedClaim && nodes.filter(v=>v.sharedClaim===n.sharedClaim).map(v=><button key={v.id} onClick={()=>go(v.id)}>{breadcrumb(d,v.id).map(x=>x.text||x.kind).join(' › ')}</button>)}</details>
       </>}
       {isGroup(n) && <><button onClick={()=>edit(d.addPremise(n!.id))}>Add a joint premise</button><button onClick={()=>{const q=window.prompt('What challenges this inference?');if(q)challenge(d,n!.id,q);}}>Challenge this inference</button></>}
-      {n?.kind==='sticky' && <><h3>Link sticky note</h3>{targetPicker(id=>id!==n.id)}<button disabled={!target} onClick={()=>e.connectTo(target)}>Attach with dashed line</button></>}
+      {n?.kind==='sticky' && <><h3>Link sticky note</h3>{targetPicker(id=>id!==n.id)}<button disabled={!target} onClick={()=>e.connectTo(target)}>Attach with dashed line</button><button disabled={d.get(target)?.kind!=='claim'} onClick={()=>{if(promoteSticky(d,n.id,target))go(n.id);}}>Convert note to a reason</button></>}
       </fieldset>
       <h3>Idea tray</h3><form onSubmit={ev=>{ev.preventDefault();if(write&&text.trim()){const id=d.addSticky(text);d.update(id,{tray:true});setText('');}}}><input aria-label="New idea" value={text} onChange={ev=>setText(ev.target.value)}/><button disabled={!write||!text.trim()}>Capture idea</button></form>
       {nodes.filter(v=>v.tray).map(v=><div key={v.id} draggable={write} onDragStart={ev=>ev.dataTransfer.setData('application/x-argument-idea',v.id)}>{v.text} <button disabled={!write||n?.kind!=='claim'} onClick={()=>{if(n&&attach(d,n.id,relation,v.text))d.remove([v.id]);}}>Place on selected claim</button></div>)}
