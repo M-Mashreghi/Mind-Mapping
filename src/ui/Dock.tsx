@@ -26,13 +26,13 @@ export function Dock({ editor }: { editor: Editor }) {
   return (
     <div ref={ref} className="dock" role="toolbar" aria-label="Tools" onPointerDown={(e) => e.stopPropagation()}>
       <div className="dock-group">
-        <button className={`dock-btn${editor.tool === 'select' ? ' on' : ''}`} title="Select and move (V)" aria-label="Select tool"
+        <button className={`dock-btn${editor.tool === 'select' ? ' on' : ''}`} title="Select and move (V)" aria-label="Select tool" aria-pressed={editor.tool === 'select'}
           onClick={() => editor.setTool('select')}>
           <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
             <path d="M4 3l11 6.2-4.8 1.1L8 15z" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
           </svg>
         </button>
-        <button className={`dock-btn${editor.tool === 'pan' ? ' on' : ''}`} title="Move around the map (H)" aria-label="Pan tool"
+        <button className={`dock-btn${editor.tool === 'pan' ? ' on' : ''}`} title="Move around the map (H)" aria-label="Pan tool" aria-pressed={editor.tool === 'pan'}
           onClick={() => editor.setTool('pan')}>
           <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
             <path d="M7 10V4.8a1.2 1.2 0 012.4 0V9m0-4.6V3.6a1.2 1.2 0 012.4 0V9m0-4.2a1.2 1.2 0 012.4 0V10m0-3a1.2 1.2 0 012.4 0v4.5A5.5 5.5 0 0111.1 17H10a5 5 0 01-4-2l-2.4-3.3a1.2 1.2 0 011.9-1.4L7 12"
@@ -43,17 +43,18 @@ export function Dock({ editor }: { editor: Editor }) {
       <span className="dock-sep" />
       {!editor.readOnly ? (
         <div className="dock-item">
-          <button className={`dock-add${pop === 'add' ? ' on' : ''}`} title="Add" aria-label="Add" aria-haspopup="menu"
+          <button className={`dock-add${pop === 'add' ? ' on' : ''}`} title="Add to map" aria-label="Add to map" aria-haspopup="menu" aria-expanded={pop === 'add'}
             onClick={() => setPop(pop === 'add' ? null : 'add')}>
             <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
               <path d="M9 3v12M3 9h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
             </svg>
+            <span>Add</span>
           </button>
           {pop === 'add' ? (
             <div className="menu-list dock-pop" role="menu">
-              {item('Claim', 'Ctrl+D', () => cmd('insert.root').run(editor), true, 'claim')}
-              {item('Reason', 'Alt+S', () => editor.addReason(), !!editor.primary, 'reason')}
-              {item('Objection', 'Alt+O', () => editor.addObjection(), !!editor.primary, 'objection')}
+              {item('Independent claim', 'Ctrl+D', () => cmd('insert.root').run(editor), true, 'claim')}
+              {item('Reason · supports the claim', 'Alt+S', () => editor.addReason(), !!editor.primary, 'reason')}
+              {item('Objection · challenges the claim', 'Alt+O', () => editor.addObjection(), !!editor.primary, 'objection')}
               {item('Co-premise', 'Tab', () => editor.addSibling(), !!node?.parent && node.kind === 'claim')}
               {item('Sticky note', 'Alt+N', () => editor.addSticky(), true, 'sticky')}
               {item('Connection', 'Alt+Click', () => cmd('insert.connection').run(editor), !!editor.primary)}
