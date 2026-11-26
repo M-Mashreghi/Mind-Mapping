@@ -2,6 +2,7 @@
 import {expect,it} from 'vitest';
 import {Editor} from '../src/editor';
 import {approxMeasure} from '../src/layout/measure';
+import {branchProse} from '../src/model/reasoning';
 import {MapDoc} from '../src/model/doc';
 
 function setup(){
@@ -42,6 +43,7 @@ it.each(['reason','objection'] as const)('keeps a floating %s through save, past
   const copy=new MapDoc();
   copy.load(e.doc.toFile());
   expect(copy.get(second)).toMatchObject({parent:null,stance:kind});
+  expect(branchProse(copy,second)).toContain('Unlinked '+kind+':');
   const [pasted]=copy.paste(copy.copy([second]),null);
   expect(copy.get(pasted)).toMatchObject({parent:null,stance:kind});
   const target=copy.addRoot('Another conclusion');
