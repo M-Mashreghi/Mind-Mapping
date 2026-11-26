@@ -188,6 +188,7 @@ try {
   console.log('Chrome passed: dragging two co-premises out shrinks a three-premise bracket');
 
   await evaluate('window.dispatchEvent(new Event("argmap:theme"))');
+  await until(()=>evaluate('Array.from(document.querySelectorAll(".tabs button")).some(b=>b.textContent==="Color")'));
   await clickLabel('Color');
   for(const mode of ['dark','light']){
     await evaluate('window.argmapEditor.setAppearance('+JSON.stringify(mode)+')');
