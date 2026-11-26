@@ -192,13 +192,15 @@ try {
   await clickLabel('Color');
   for(const mode of ['dark','light']){
     await evaluate('window.argmapEditor.setAppearance('+JSON.stringify(mode)+')');
-    await until(()=>evaluate(`(() => {
-      const swatches=Array.from(document.querySelectorAll('.theme-body input[type=color]'),i=>i.value.toLowerCase());
+    await until(()=>evaluate('document.documentElement.dataset.theme==='+JSON.stringify(mode)+' && document.querySelectorAll(".theme-body input[type=color]").length===10'));
+    const snapshot = () => evaluate(`(() => {
       const props=['--bg','--reason-ink','--reason-fill','--reason-line','--objection-ink','--objection-fill','--objection-line','--root-ink','--root-fill','--root-line'];
       const style=getComputedStyle(document.querySelector('.canvas'));
-      return document.documentElement.dataset.theme==='${mode}' && swatches.length===props.length &&
-        props.every((name,i)=>style.getPropertyValue(name).trim().toLowerCase()===swatches[i]);
-    })()`));
+      return {actual:Array.from(document.querySelectorAll('.theme-body input[type=color]'),i=>i.value.toLowerCase()),expected:props.map(p=>style.getPropertyValue(p).trim().toLowerCase())};
+    })()`);
+    await until(async()=>{const view=await snapshot();if(view.actual.join()===view.expected.join())return true;
+      console.log(mode,JSON.stringify(view));return false;});
+
   }
   await evaluate('window.argmapEditor.setTheme({reason:{...window.argmapEditor.doc.theme.reason,fill:"#123456"}})');
   await until(()=>evaluate('document.querySelectorAll(".theme-body input[type=color]")[2].value==="#123456"'));
