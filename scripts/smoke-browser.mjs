@@ -21,6 +21,7 @@ async function until(check) {
   throw Error('Timed out waiting for browser state');
 }
 try {
+  console.log('Connecting to Chrome');
   const page = await until(async () => {
     try {
       const pages = await (await fetch('http://127.0.0.1:9222/json/list')).json();
@@ -50,16 +51,19 @@ try {
     return reply.result.value;
   }
   const add = 'document.querySelector(\'button[aria-label="Add to map"]\')';
+  console.log('Waiting for Add');
   await until(() => evaluate('!!' + add));
   await evaluate(add + '.focus()');
   for (const type of ['keyDown', 'keyUp']) {
     await send('Input.dispatchKeyEvent', { type, key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
   }
+  console.log('Checking keyboard-opened menu');
   await until(() => evaluate(add + '.getAttribute("aria-expanded") === "true"'));
   const items = 'Array.from(document.querySelectorAll(\'.dock [role="menuitem"]\'))';
   await evaluate(items + '.find(b => b.textContent.includes("Independent claim")).click()');
   for (const [label, kind] of [['supports the claim', 'reason'], ['challenges the claim', 'objection']]) {
     const count = 'window.argmapEditor.doc.all().filter(n => n.kind === ' + JSON.stringify(kind) + ').length';
+    console.log('Inserting', kind);
     const before = await evaluate(count);
     await evaluate(add + '.click()');
     await evaluate(items + '.find(b => b.textContent.includes(' + JSON.stringify(label) + ')).click()');
@@ -76,5 +80,5 @@ try {
   browser.kill();
   await closed;
   await new Promise(resolve => server.httpServer.close(resolve));
-  await rm(profile, { recursive: true, force: true });
+  await rm(profile, { recursive: true, force: true, maxRetries: 8, retryDelay: 120 });
 }
