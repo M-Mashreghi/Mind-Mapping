@@ -53,9 +53,11 @@ try {
   const add = 'document.querySelector(\'button[aria-label="Add to map"]\')';
   console.log('Waiting for Add');
   await until(() => evaluate('!!' + add));
-  await evaluate(add + '.focus()');
+  await evaluate('window.argmapEditor.finishEditing(null)');
+  await until(() => evaluate('(' + add + '.focus(), document.activeElement === ' + add + ')'));
+
   for (const type of ['keyDown', 'keyUp']) {
-    await send('Input.dispatchKeyEvent', { type, key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+    await send('Input.dispatchKeyEvent', { type, key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13, text: type === 'keyDown' ? '\r' : '' });
   }
   console.log('Checking keyboard-opened menu');
   await until(() => evaluate(add + '.getAttribute("aria-expanded") === "true"'));
