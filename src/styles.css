@@ -2852,3 +2852,34 @@ img.emoji {
   background: var(--line);
   margin: 0 4px;
 }
+
+/* Keep the stance control inside its own box when moving between co-premises. */
+.stance-switch {
+  position: absolute;
+  left: 4px;
+  top: -9px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 32px;
+  height: 21px;
+  border: 1px solid currentColor;
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--reason);
+  font-weight: 700;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+}
+.stance-switch span {font-size: 11px;}
+.switch-objection {color: var(--objection);}
+.claim:hover > .stance-switch, .group:hover > .stance-switch,
+.selected > .stance-switch, .stance-switch:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+.group > .stance-switch {top: 0; left: auto; right: 4px;}
+.detach-hint {white-space: nowrap; pointer-events: none;}

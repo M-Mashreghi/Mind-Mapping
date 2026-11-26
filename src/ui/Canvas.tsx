@@ -32,6 +32,7 @@ interface DragState {
   dx: number;
   dy: number;
   target: string | null;
+  detachHint?: boolean;
 }
 
 interface PanState {
@@ -174,6 +175,7 @@ export function Canvas({ editor, onContextMenu }: Props) {
     const m = editor.screenToMap(p.x, p.y);
     const hit = hitTest(layout, m.x, m.y, d.moving);
     d.target = hit && d.ids.some((id) => doc.canMove(id, hit.id)) ? hit.id : null;
+    d.detachHint = !hit && !e.shiftKey && d.ids.some(id => { const n = doc.get(id); return n?.kind === 'claim' && n.parent; });
     setDrag({ ...d });
   };
 
@@ -193,7 +195,11 @@ export function Canvas({ editor, onContextMenu }: Props) {
     dragRef.current = null;
     setDrag(null);
     if (!d || !d.active) return;
-    editor.drop(d.ids, d.target, d.dx, d.dy);
+    const point = local(e);
+    const mapPoint = editor.screenToMap(point.x, point.y);
+    const hit = hitTest(layout, mapPoint.x, mapPoint.y, d.moving);
+    const target = hit && d.ids.some(id => doc.canMove(id, hit.id)) ? hit.id : null;
+    editor.drop(d.ids, target, (e.clientX - d.startX) / view.zoom, (e.clientY - d.startY) / view.zoom, !hit && !e.shiftKey);
   };
 
   const onDoubleClick = (e: React.MouseEvent) => {
@@ -293,6 +299,10 @@ export function Canvas({ editor, onContextMenu }: Props) {
             <EdgePath key={`hit-${edge.from}`} hit edge={edge} lineStyle={theme.lineStyle} from={offsetFor(edge.from)} to={offsetFor(edge.to)} />
           ))}
         </svg>
+        {drag?.active && drag.detachHint && (() => {
+          const b = layout.boxes.get(drag.ids[0]);
+          return b && <span className="idea-drop-preview detach-hint" style={{left:b.x+drag.dx,top:b.y+drag.dy-28}}>Detach · Shift to keep linked</span>;
+        })()}
         {drag?.active && drag.target && (() => {
           const to=layout.boxes.get(drag.target), from=layout.boxes.get(drag.ids[0]), target=doc.get(drag.target);
           if(!to||!from||!target)return null;
@@ -300,7 +310,7 @@ export function Canvas({ editor, onContextMenu }: Props) {
         })()}
         {wire && layout.boxes.has(wire.source) && <svg className="edges wire-preview" width="1" height="1" overflow="visible"><line x1={layout.boxes.get(wire.source)!.x+layout.boxes.get(wire.source)!.w} y1={layout.boxes.get(wire.source)!.y} x2={wire.x} y2={wire.y} stroke="var(--brand)" strokeWidth="2" strokeDasharray="6 5"/></svg>}
         {groups.map((b) => (
-          <GroupView key={b.id} box={b} node={nodes.get(b.id)!} offset={offsetFor(b.id)} selected={selected.has(b.id)} dropTarget={drag?.target === b.id || wire?.target===b.id} />
+          <GroupView editor={editor} key={b.id} box={b} node={nodes.get(b.id)!} offset={offsetFor(b.id)} selected={selected.has(b.id)} dropTarget={drag?.target === b.id || wire?.target===b.id} />
         ))}
         {claims.map((b) => (
           <ClaimView
@@ -484,7 +494,23 @@ function EdgeLabel({ id, kind, x, y, text, own, editing, selected, editor }: {
   );
 }
 
-function GroupView({ box, node, offset, selected, dropTarget }: { box: Box; node: MapNode; offset: Off; selected: boolean; dropTarget: boolean }) {
+function StanceSwitch({ editor, node }: { editor: Editor; node: MapNode }) {
+  if (editor.readOnly || editor.presentation || editor.editing) return null;
+  const group = node.kind === 'claim' ? editor.doc.get(node.parent) : node;
+  if (!group || (group.kind !== 'reason' && group.kind !== 'objection')) return null;
+  const current = node.kind === 'claim' ? node.stance ?? group.kind : group.kind;
+  const next = current === 'reason' ? 'objection' : 'reason';
+  const label = 'Change ' + (node.kind === 'claim' ? 'premise' : 'group') + ' to ' + next;
+  return <button type="button" className={'stance-switch switch-' + current} title={label} aria-label={label}
+    onPointerDown={event => event.stopPropagation()} onDoubleClick={event => event.stopPropagation()}
+    onClick={event => {
+      event.stopPropagation();
+      if (node.kind === 'claim') editor.doc.setPremiseStance(node.id, next);
+      else editor.doc.setGroupKind(node.id, next);
+    }}>{current === 'reason' ? '+' : '−'}<span aria-hidden="true">⇄</span></button>;
+}
+
+function GroupView({ editor, box, node, offset, selected, dropTarget }: { editor: Editor; box: Box; node: MapNode; offset: Off; selected: boolean; dropTarget: boolean }) {
   const st = node.style ?? {};
   return (
     <div
@@ -497,6 +523,7 @@ function GroupView({ box, node, offset, selected, dropTarget }: { box: Box; node
       role="group"
       aria-label={box.kind === 'reason' ? 'Reason' : 'Objection'}
     >
+      <StanceSwitch editor={editor} node={node} />
       <span className="group-label">{box.kind === 'reason' ? 'Reason' : 'Objection'}</span>
     </div>
   );
@@ -584,6 +611,7 @@ function ClaimView({ box, node, theme, label, match, offset, selected, dropTarge
       )}
       {node.evidence?.length ? <button className="node-badge" title={node.evidence.map(v=>[v.source,v.page,v.quote].filter(Boolean).join(' · ')).join('\n')} onClick={()=>window.alert(node.evidence!.map(v=>[v.source,v.page,v.quote].filter(Boolean).join(' · ')).join('\n'))}>Sources ({node.evidence.length})</button>:null}
       {node.questions?.some(q=>!q.answer) && <span title={node.questions.map(q=>q.text).join('\n')}>?</span>}
+      {node.kind === 'claim' && node.parent && <StanceSwitch editor={editor} node={node} />}
       {offStance ? <span className={`stance-bar stance-${groupKind}`} aria-hidden="true" /> : null}
       {label ? <span className="node-label">{label}</span> : null}
       {node.kind==='sticky'&&!editor.readOnly&&!editor.presentation&&!editing&&<span className="wire-handle" data-wire={node.id} title="Drag to connect this note to a box">↗</span>}
