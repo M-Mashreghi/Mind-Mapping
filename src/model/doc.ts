@@ -557,6 +557,16 @@ export class MapDoc {
   copy(ids: string[]): ClipNode[] {
     const top = this.selectionRoots(ids);
     const byParent = this.indexByParent();
+    const siblingCounts = new Map<string,number>();
+    for (const id of top) {
+      const parent = this.get(id)?.parent;
+      if (parent) siblingCounts.set(parent,(siblingCounts.get(parent) ?? 0)+1);
+    }
+    const joint = (n: MapNode): ClipNode['joint'] => {
+      if (!n.parent || !top.includes(n.id) || (siblingCounts.get(n.parent) ?? 0) < 2) return;
+      const group = this.get(n.parent);
+      if (group?.kind === 'reason' || group?.kind === 'objection') return {id:group.id,kind:group.kind,text:group.text};
+    };
     const included = new Set(top.flatMap(id => this.subtreeIds(id)));
     const links = new Map<string,string[]>();
     for (const c of this.allConnections()) if (included.has(c.from) && included.has(c.to)) {
@@ -566,6 +576,7 @@ export class MapDoc {
     }
     const build = (n: MapNode): ClipNode => ({
       sourceId: n.id,
+      joint: joint(n),
       linkedTargets: links.get(n.id),
       kind: n.kind,
       text: n.text,
@@ -593,6 +604,7 @@ export class MapDoc {
     const out: string[] = [];
     const target = this.get(targetId);
     const pastedIds = new Map<string,string>();
+    const jointGroups = new Map<string,string>();
     const connections: [string,string][] = [];
     const insert = (c: ClipNode, parent: string | null, extra: Partial<MapNode> = {}): string => {
       const id = newId();
@@ -618,8 +630,12 @@ export class MapDoc {
         } else if (c.kind === 'claim') {
           if (isGroup(target)) out.push(insert(c, target!.id));
           else if (isClaim(target)) {
-            const g = newId();
-            this.put({ id: g, kind: c.stance ?? 'reason', parent: target!.id, order: this.orderAfter(target!.id), text: '' });
+            let g = c.joint && jointGroups.get(c.joint.id);
+            if (!g) {
+              g = newId();
+              this.put({id:g,kind:c.joint?.kind ?? c.stance ?? 'reason',parent:target!.id,order:this.orderAfter(target!.id),text:c.joint?.text ?? ''});
+              if (c.joint) jointGroups.set(c.joint.id,g);
+            }
             out.push(insert(c, g));
           } else {
             out.push(insert(c, null, { x: Math.round(x + offset), y: Math.round(y) }));
@@ -710,6 +726,7 @@ export interface ClipNode extends Pick<MapNode, 'evidence'|'questions'|'review'|
   w?: number;
   h?: number;
   stance?: GroupKind;
+  joint?: {id:string; kind:GroupKind; text:string};
   sourceId?: string;
   linkedTargets?: string[];
   children: ClipNode[];

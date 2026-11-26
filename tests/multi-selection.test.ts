@@ -69,3 +69,12 @@ it('keeps linked premises together when promoting their entire bracket',()=>{
   expect(e.doc.get(groupId)?.parent).toBe(e.primary);expect(e.doc.children(groupId)).toHaveLength(2);
   expect(e.doc.get(e.primary)?.parent).toBeNull();
 });
+
+it('pastes jointly selected co-premises under a single fresh group on the destination',()=>{
+  const {e,groupId,premiseId,second}=fixture(),target=e.doc.addRoot('Target');
+  e.doc.setText(groupId,'Because of cost');e.doc.setPremiseStance(second,'reason');
+  e.select([premiseId,second]);const clipboard=e.copyText();e.select([target]);e.pasteText(clipboard);
+  const groups=e.doc.children(target);expect(groups).toHaveLength(1);
+  expect(groups[0]).toMatchObject({kind:'objection',text:'Because of cost'});
+  expect(e.doc.children(groups[0].id)).toHaveLength(2);expect(e.doc.get(e.selection[1])?.stance).toBe('reason');
+});
