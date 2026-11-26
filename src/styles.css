@@ -2122,9 +2122,10 @@ legend {
 }
 
 .dock-add {
-  display: grid;
-  place-items: center;
-  width: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 10px;
   height: 32px;
   border: 1.5px solid var(--ink);
   border-radius: 16px;

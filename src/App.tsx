@@ -93,6 +93,9 @@ export function App() {
   // Keyboard shortcuts.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.isComposing || dialog) return;
+      const button = e.target instanceof Element && e.target.closest('button, a[href], [role="menuitem"]');
+      if (button && ['Enter', ' ', 'Tab'].includes(e.key)) return;
       if (editor.presentation) {
         const next = ['ArrowRight', 'ArrowDown', 'PageDown', ' ', 'Enter', 'n'];
         const prev = ['ArrowLeft', 'ArrowUp', 'PageUp', 'Backspace', 'p'];
@@ -105,8 +108,7 @@ export function App() {
         e.preventDefault();
         return;
       }
-      if (e.defaultPrevented || editor.editing || isTextField(e.target)) return;
-      if (dialog) return;
+      if (editor.editing || isTextField(e.target)) return;
       const arrows: Record<string, 'up' | 'down' | 'left' | 'right'> = {
         ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right',
       };
@@ -137,16 +139,17 @@ export function App() {
   // System clipboard integration.
   useEffect(() => {
     const onCopy = (e: ClipboardEvent, cut: boolean) => {
-      if (editor.editing || isTextField(e.target) || !editor.selection.length) return;
+      if (dialog || editor.presentation || editor.editing || isTextField(e.target) || !editor.selection.length || !e.clipboardData) return;
+      if (cut && editor.readOnly) return;
       const text = cut ? editor.cut() : editor.copyText();
-      if (!text || !e.clipboardData) return;
+      if (!text) return;
       e.preventDefault();
       e.clipboardData.setData('text/plain', text);
     };
     const copy = (e: ClipboardEvent) => onCopy(e, false);
     const cut = (e: ClipboardEvent) => onCopy(e, true);
     const paste = (e: ClipboardEvent) => {
-      if (editor.editing || isTextField(e.target) || editor.readOnly) return;
+      if (dialog || editor.presentation || editor.editing || isTextField(e.target) || editor.readOnly || !e.clipboardData) return;
       e.preventDefault();
       editor.pasteText(e.clipboardData?.getData('text/plain') ?? null);
     };
@@ -158,7 +161,7 @@ export function App() {
       document.removeEventListener('cut', cut);
       document.removeEventListener('paste', paste);
     };
-  }, []);
+  }, [dialog]);
 
   // Desktop: confirm before closing with unsaved changes.
   useEffect(() => {
