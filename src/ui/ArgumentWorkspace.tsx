@@ -10,6 +10,7 @@ export function ArgumentWorkspace({editor:e, close}:{editor:Editor;close:()=>voi
   const [source,setSource]=useState(''), [page,setPage]=useState(''), [quote,setQuote]=useState('');
   const [relation,setRelation]=useState<Relation>('reason'), [passage,setPassage]=useState('');
   const [focus,setFocus]=useState(''), [off,setOff]=useState(''), [version,setVersion]=useState(0);
+  const [otherVersion,setOtherVersion]=useState(-1);
   const [hidden,setHidden]=useState<Set<string>>(new Set()), [openOnly,setOpenOnly]=useState(false);
   const split=useRef<HTMLTextAreaElement>(null), article=useRef<HTMLTextAreaElement>(null);
   const name=(id:string)=>{const v=d.get(id); return v?.text || v?.kind || 'Removed';};
@@ -21,7 +22,7 @@ export function ArgumentWorkspace({editor:e, close}:{editor:Editor;close:()=>voi
   const dim=off && d.has(off) ? affected(d,off) : new Set<string>();
   const hideCss=(!visible && !dim.size ? [] : nodes).flatMap(v=>{
     const escaped=CSS.escape(v.id);
-    const sel=['data-node-id','data-edge'].map(key=>'.canvas ['+key+'="'+escaped+'"]').join(',');
+    const sel=['data-node-id','data-edge','data-from','data-to'].map(key=>'.canvas ['+key+'="'+escaped+'"]').join(',');
     return visible&&!visible.has(v.id) ? [sel+'{visibility:hidden}'] : dim.has(v.id) ? [sel+'{opacity:.22}'] : [];
   }).join('');
   const targetPicker=(allow:(id:string)=>boolean)=> <label>Target box<select value={target} onChange={ev=>setTarget(ev.target.value)}><option value="">Choose a box…</option>{nodes.filter(v=>allow(v.id)).map(v=><option key={v.id} value={v.id}>{name(v.id)}</option>)}</select></label>;
@@ -78,7 +79,11 @@ export function ArgumentWorkspace({editor:e, close}:{editor:Editor;close:()=>voi
       <button onClick={()=>{const s=window.prompt('Paste box link');if(s)openLink(s);}}>Go to box link</button>
       <h3>Objections</h3><label><input type="checkbox" checked={openOnly} onChange={ev=>setOpenOnly(ev.target.checked)}/> Open only</label>
       {nodes.filter(v=>v.kind==='objection'&&(!openOnly||!v.review||v.review==='open')).map(v=><div key={v.id}><button onClick={()=>go(v.id)}>{d.children(v.id).map(p=>p.text).join(' + ')||'Objection'}</button><select aria-label="Objection status" disabled={!write} value={v.review??'open'} onChange={ev=>d.update(v.id,{review:ev.target.value as 'open'|'partial'|'resolved'})}><option>open</option><option>partial</option><option>resolved</option></select></div>)}
-      <h3>Compare saved version</h3>{!e.history.length?'Save a version to compare.':<><select aria-label="Earlier version" value={version} onChange={ev=>setVersion(Number(ev.target.value))}>{e.history.map((v,i)=><option key={i} value={i}>{v.savedAt}</option>)}</select>{changes(e.history[version]?.nodes??[],nodes).map((c,i)=><p key={i}><b>{c.change}</b> · {c.node.text||c.node.kind}</p>)}</>}
+      <h3>Compare saved version</h3>{!e.history.length?'Save a version to compare.':<><select aria-label="Earlier version" value={version} onChange={ev=>setVersion(Number(ev.target.value))}>{e.history.map((v,i)=><option key={i} value={i}>{v.savedAt}</option>)}</select><select aria-label="Compare against" value={otherVersion} onChange={ev=>setOtherVersion(Number(ev.target.value))}><option value={-1}>Current map</option>{e.history.map((h,i)=><option key={i} value={i}>{h.savedAt}</option>)}</select>
+      <table><thead><tr><th>Change</th><th>Before</th><th>After</th></tr></thead><tbody>{changes(e.history[version]?.nodes??[],e.history[otherVersion]?.nodes??nodes).map((c,i)=>{
+        const display=(list:typeof nodes)=>{const v=list.find(s=>s.id===c.node.id);if(!v)return '—';if(c.change==='Position changed')return [v.x??0,v.y??0,v.dx??0,v.dy??0].join(', ');if(c.change==='Argument changed'){const parent=list.find(s=>s.id===v.parent);return [v.kind,parent?.text||parent?.kind||'root'].join(' → ');}return v.text||v.kind;};
+        return <tr key={i}><td>{c.change}</td><td>{display(e.history[version]?.nodes??[])}</td><td>{display(e.history[otherVersion]?.nodes??nodes)}</td></tr>;
+      })}</tbody></table></>}
     </>}
     {tab==='Exercise' && <><p>Select claims or relationships to leave blank on the printable worksheet.</p>{nodes.map(v=><label key={v.id}><input type="checkbox" checked={hidden.has(v.id)} onChange={()=>{const next=new Set(hidden);if(next.has(v.id))next.delete(v.id);else next.add(v.id);setHidden(next);}}/>{name(v.id)}</label>)}<button disabled={!hidden.size} onClick={()=>{const url=URL.createObjectURL(new Blob([exercise(d.toFile(),hidden)],{type:'text/html'}));const a=document.createElement('a');a.href=url;a.download='argument-exercise.html';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}}>Download worksheet</button></>}
   </aside>;

@@ -542,6 +542,7 @@ export class MapDoc {
       implicit: n.implicit,
       collapsed: n.collapsed,
       style: n.style,
+      evidence: n.evidence, questions: n.questions, review: n.review, passage: n.passage, excerpt: n.excerpt,
       note: n.note,
       link: n.link,
       w: n.w,
@@ -566,7 +567,7 @@ export class MapDoc {
       this.put({
         id, kind: c.kind, parent, order: this.orderAfter(parent), text: c.text ?? '',
         implicit: c.implicit || undefined, collapsed: c.collapsed || undefined,
-        style: c.style, note: c.note, link: c.link,
+        style: c.style, note: c.note, link: c.link, evidence:c.evidence, questions:c.questions, review:c.review, passage:c.passage, excerpt:c.excerpt,
         ...(c.kind === 'sticky' && c.w ? { w: c.w, h: c.h } : {}),
         ...(c.stance && parent && isGroup(this.get(parent)) && this.get(parent)!.kind !== c.stance ? { stance: c.stance } : {}),
         ...extra,
@@ -660,7 +661,7 @@ export class MapDoc {
   }
 }
 
-export interface ClipNode {
+export interface ClipNode extends Pick<MapNode, 'evidence'|'questions'|'review'|'passage'|'excerpt'> {
   kind: MapNode['kind'];
   text: string;
   implicit?: boolean;

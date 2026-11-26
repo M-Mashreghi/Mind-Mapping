@@ -211,7 +211,7 @@ export function Canvas({ editor, onContextMenu }: Props) {
     drag?.active && drag.moving.has(id) ? { dx: drag.dx, dy: drag.dy } : { dx: 0, dy: 0 };
 
   const nodes = new Map<string, MapNode>(doc.all().map((n) => [n.id, n]));
-  const boxes = [...layout.boxes.values()];
+  const boxes = [...layout.boxes.values()].filter(b=>!nodes.get(b.id)?.tray);
   const groups = boxes.filter((b) => b.kind === 'reason' || b.kind === 'objection');
   const claims = boxes.filter((b) => b.kind === 'claim' || b.kind === 'sticky');
   const theme = doc.theme;
@@ -342,6 +342,7 @@ export function Canvas({ editor, onContextMenu }: Props) {
             <ConnectionPath
               key={c.id}
               conn={c}
+              annotation={nodes.get(c.from)?.kind==='sticky'||nodes.get(c.to)?.kind==='sticky'}
               a={layout.boxes.get(c.from)}
               b={layout.boxes.get(c.to)}
               oa={offsetFor(c.from)}
@@ -382,7 +383,7 @@ function exitPoint(b: Box, o: Off, tx: number, ty: number) {
   return { x: cx + dx * k, y: cy + dy * k };
 }
 
-function ConnectionPath({ conn, a, b, oa, ob, selected }: { conn: Connection; a?: Box; b?: Box; oa: Off; ob: Off; selected: boolean }) {
+function ConnectionPath({ conn, a, b, oa, ob, selected, annotation }: { annotation:boolean; conn: Connection; a?: Box; b?: Box; oa: Off; ob: Off; selected: boolean }) {
   if (!a || !b) return null;
   const ca = { x: a.x + oa.dx + a.w / 2, y: a.y + oa.dy + a.h / 2 };
   const cb = { x: b.x + ob.dx + b.w / 2, y: b.y + ob.dy + b.h / 2 };
@@ -390,9 +391,9 @@ function ConnectionPath({ conn, a, b, oa, ob, selected }: { conn: Connection; a?
   const p2 = exitPoint(b, ob, ca.x, ca.y);
   const d = `M${p1.x} ${p1.y} L${p2.x} ${p2.y}`;
   return (
-    <g data-connection-id={conn.id} className={`connection${selected ? ' selected' : ''}`}>
+    <g data-from={conn.from} data-to={conn.to} data-connection-id={conn.id} className={`connection${selected ? ' selected' : ''}`}>
       <path className="connection-hit" d={d} />
-      <path className="connection-line" d={d} markerEnd="url(#arrow-link)" />
+      <path className="connection-line" d={d} strokeDasharray={annotation ? "6 5" : undefined} markerEnd={annotation ? undefined : "url(#arrow-link)"} />
     </g>
   );
 }
