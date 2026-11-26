@@ -52,6 +52,14 @@ export interface MapNode {
   dx?: number;
   dy?: number;
   style?: NodeStyle;
+  evidence?: { source: string; page: string; quote: string }[];
+  questions?: { text: string; answer: string }[];
+  review?: 'open' | 'partial' | 'resolved';
+  sharedClaim?: string;
+  tray?: boolean;
+  passage?: string;
+  excerpt?: [number, number];
+  challengesInference?: string;
   /** Longer free-text note attached to the node. */
   note?: string;
   /** A web link opened from the node. */

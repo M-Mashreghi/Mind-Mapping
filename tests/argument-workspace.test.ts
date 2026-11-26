@@ -1,0 +1,26 @@
+import {describe,it,expect} from 'vitest';
+import {MapDoc} from '../src/model/doc';
+import {attach,splitClaim,reuse,challenge,addExcerpt,breadcrumb,affected,changes,exercise,jump,dropLabel} from '../src/model/workspace';
+import {parseMapFile,serialize} from '../src/model/file';
+function fixture(){const d=new MapDoc(),root=d.addRoot('Conclusion'),g=d.addGroup(root,'reason','First premise')!;return {d,root,...g};}
+function reload(d:MapDoc){const copy=new MapDoc();copy.load(parseMapFile(serialize(d.toFile())));return copy;}
+describe('argument workspace',()=>{
+ it('replies to an objection on its premise',()=>{const {d,root}=fixture();const o=attach(d,root,'objection','Cost')!;attach(d,o,'objection','Grant covers it');expect(d.children(o)[0].kind).toBe('objection');});
+ it('keeps joint premises in one inference and independent reasons separate',()=>{const {d,premiseId,groupId,root}=fixture();attach(d,premiseId,'together','Second');attach(d,premiseId,'independent','Other');expect(d.children(groupId)).toHaveLength(2);expect(d.children(root)).toHaveLength(2);});
+ it('edits outline entries through the map document',()=>{const {d,premiseId}=fixture();d.setText(premiseId,'Edited outline');expect(reload(d).get(premiseId)?.text).toBe('Edited outline');});
+ it('round trips evidence and page reference',()=>{const {d,root}=fixture();const evidence=[{source:'Paper',page:'12',quote:'Sample'}];d.update(root,{evidence});expect(reload(d).get(root)?.evidence).toEqual(evidence);});
+ it('locates the focused branch and preserves its breadcrumb',()=>{const {d,root,premiseId,groupId}=fixture();expect(breadcrumb(d,premiseId).map(n=>n.id)).toEqual([root,groupId,premiseId]);expect(d.subtreeIds(groupId)).not.toContain(root);});
+ it('keeps manual objection status when a reply is added',()=>{const {d,root}=fixture();const o=d.addGroup(root,'objection')!;d.update(o.groupId,{review:'partial'});attach(d,o.premiseId,'objection','Reply');expect(reload(d).get(o.groupId)?.review).toBe('partial');});
+ it('tracks dependent support but preserves an independent route',()=>{const {d,root,premiseId,groupId}=fixture();expect(affected(d,premiseId).has(root)).toBe(true);attach(d,premiseId,'independent','Alternative');expect([...affected(d,premiseId)]).toEqual([premiseId,groupId]);});
+ it('targets the inference itself with a challenge',()=>{const {d,groupId}=fixture();challenge(d,groupId,'Alternative explanation');expect(reload(d).all().find(n=>n.challengesInference===groupId)?.text).toBe('Alternative explanation');expect(d.allConnections()[0].to).toBe(groupId);});
+ it('stores open questions and their answers',()=>{const {d,root}=fixture();d.update(root,{questions:[{text:'When?',answer:''}]});d.update(root,{questions:[{text:'When?',answer:'2026'}]});expect(reload(d).get(root)?.questions?.[0].answer).toBe('2026');});
+ it('edits every occurrence of a reused claim',()=>{const {d,root,premiseId}=fixture();reuse(d,premiseId,root);const copy=reload(d);copy.setText(premiseId,'Updated');expect(copy.all().filter(n=>n.text==='Updated')).toHaveLength(2);});
+ it('splits at the cursor as one undo step',()=>{const {d,premiseId}=fixture();splitClaim(d,premiseId,5,'together');expect(d.get(premiseId)?.text).toBe('First');d.undo.undo();expect(d.get(premiseId)?.text).toBe('First premise');});
+ it('captures an unattached idea and places it as an objection',()=>{const {d,root}=fixture();const id=d.addSticky('Budget');d.update(id,{tray:true});expect(reload(d).get(id)?.tray).toBe(true);expect(attach(d,root,'objection',d.get(id)!.text)).toBeTruthy();});
+ it('previews whether a drop supports or objects',()=>{const {d,root}=fixture();const o=d.addGroup(root,'objection')!;expect(dropLabel(d.get(root)!,d.get(o.groupId))).toBe('Object to: Conclusion');});
+ it('preserves the selected passage and exact quotation',()=>{const {d,root}=fixture();addExcerpt(d,'First. Second.',7,14,root);const n=reload(d).all().find(n=>n.passage)!;expect(n.passage!.slice(...n.excerpt!)).toBe(n.text);});
+ it('jumps to an existing node and ignores stale links',()=>{const {d,root}=fixture();let selected='';expect(jump(d,root,id=>selected=id)).toBe(true);expect(selected).toBe(root);expect(jump(d,'missing',()=>{})).toBe(false);});
+ it('separates wording, topology and visual movement in version comparisons',()=>{const {d,root,premiseId}=fixture();const before=d.all();d.setText(root,'Updated');d.update(root,{x:40});d.update(premiseId,{parent:null});expect(changes(before,d.all()).map(v=>v.change).sort()).toEqual(['Argument changed','Position changed','Text edited']);});
+ it('exports a printable exercise without the hidden answers',()=>{const {d,groupId,premiseId}=fixture();const html=exercise(d.toFile(),new Set([groupId,premiseId]));expect(html).toContain('Relationship: ___');expect(html).not.toContain('First premise');expect(html).toContain('Conclusion');});
+ it('links a sticky to both a claim and an inference and survives reopening',()=>{const {d,root,groupId}=fixture();const s=d.addSticky('Question');d.addConnection(s,root);d.addConnection(s,groupId);expect(reload(d).allConnections().map(c=>c.to).sort()).toEqual([root,groupId].sort());});
+});

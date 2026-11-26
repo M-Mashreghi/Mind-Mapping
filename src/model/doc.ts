@@ -11,7 +11,7 @@ export function newId(): string {
 }
 
 const NODE_FIELDS: (keyof MapNode)[] = [
-  'id', 'kind', 'parent', 'order', 'text', 'implicit', 'collapsed', 'x', 'y', 'dx', 'dy', 'style', 'note', 'link',
+  'id', 'kind', 'parent', 'order', 'text', 'implicit', 'collapsed', 'x', 'y', 'dx', 'dy', 'style', 'note', 'link', 'w', 'h', 'stance', 'evidence', 'questions', 'review', 'sharedClaim', 'tray', 'passage', 'excerpt', 'challengesInference',
 ];
 
 /**
@@ -366,7 +366,14 @@ export class MapDoc {
   }
 
   setText(id: string, text: string): void {
-    if (this.get(id)?.text !== text) this.update(id, { text });
+    const node = this.get(id);
+    if (!node || node.text === text) return;
+    this.transact(() => {
+      this.update(id, { text });
+      if (node.sharedClaim) for (const other of this.all()) {
+        if (other.id !== id && other.sharedClaim === node.sharedClaim) this.update(other.id, { text });
+      }
+    });
   }
 
   toggleImplicit(ids: string[]): void {
