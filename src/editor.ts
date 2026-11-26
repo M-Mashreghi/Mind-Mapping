@@ -702,7 +702,7 @@ export class Editor {
       for (const id of this.selection) {
         const n = this.doc.get(id);
         if (isGroup(n)) this.doc.setGroupKind(n!.id, kind);
-        else if (n && isGroup(this.doc.get(n.parent))) this.doc.setPremiseStance(n.id, kind);
+        else if (n && (n.stance || isGroup(this.doc.get(n.parent)))) this.doc.setPremiseStance(n.id, kind);
       }
     });
   }

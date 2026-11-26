@@ -50,6 +50,7 @@ export function ArgumentWorkspace({editor:e, close}:{editor:Editor;close:()=>voi
       {!n&&write&&<button onClick={()=>e.addRoot()}>Start a claim</button>}
       <fieldset disabled={!write}>
       {n?.kind==='claim' && <>
+        {!n.parent && !n.stance && <button onClick={()=>d.setPremiseStance(n.id,'reason')}>Make unlinked reason</button>}
         <button onClick={()=>edit(attach(d,n.id,'reason',''))}>Give a reason</button>
         <button onClick={()=>edit(attach(d,n.id,'objection',''))}>{stanceOf(n,d.get(n.parent))==='objection'?'Reply to objection':'Raise objection'}</button>
         {n.parent && <><button onClick={()=>edit(attach(d,n.id,'together',''))}>Add a joint premise</button><button onClick={()=>edit(attach(d,n.id,'independent',''))}>Add independent argument</button></>}

@@ -1,5 +1,5 @@
 import { LayoutResult, placeLineLabels } from '../layout/layout';
-import { Connection, MapNode, Theme, stanceOf } from '../model/types';
+import { Connection, MapNode, Theme, isConclusion, stanceOf } from '../model/types';
 import { boxStyle, textStyle } from '../theme';
 
 import interRegular from '@fontsource/inter/files/inter-latin-400-normal.woff2?url';
@@ -242,7 +242,7 @@ export async function buildSvg(input: SvgInput): Promise<{ svg: string; width: n
     const ts = textStyle(n, theme);
     const bs = boxStyle(n, theme);
     const sticky = n.kind === 'sticky';
-    const isRoot = n.kind === 'claim' && n.parent === null;
+    const isRoot = isConclusion(n);
     const groupNode = n.parent ? byId.get(n.parent) : undefined;
     const group = stanceOf(n, groupNode);
     const inReason = group === 'reason', inObjection = group === 'objection';

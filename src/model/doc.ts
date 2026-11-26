@@ -354,8 +354,8 @@ export class MapDoc {
     this.transact(() => {
       if (n!.parent === null) {
         this.put({ id: newClaim, kind: 'claim', parent: null, order: n!.order, text: '', x: n!.x, y: n!.y });
-        this.put({ id: group, kind: 'reason', parent: newClaim, order: 1, text: '' });
-        this.update(n!.id, { parent: group, order: 1, x: undefined, y: undefined, dx: undefined, dy: undefined });
+        this.put({ id: group, kind: n!.stance ?? 'reason', parent: newClaim, order: 1, text: '' });
+        this.update(n!.id, { parent: group, order: 1, stance: undefined, x: undefined, y: undefined, dx: undefined, dy: undefined });
       } else {
         this.put({ id: newClaim, kind: 'claim', parent: n!.parent, order: n!.order, text: '' });
         this.put({ id: group, kind: 'reason', parent: newClaim, order: 1, text: '' });
@@ -411,6 +411,10 @@ export class MapDoc {
   setPremiseStance(id: string, kind: GroupKind): void {
     const p = this.get(id);
     const g = this.get(p?.parent ?? '');
+    if (p?.kind === 'claim' && p.parent === null) {
+      this.update(id, { stance: kind });
+      return;
+    }
     if (!p || !g || !isGroup(g)) return;
     const siblings = this.all().filter((n) => n.parent === g.id);
     if (siblings.length < 2) this.setGroupKind(g.id, kind);
@@ -484,8 +488,9 @@ export class MapDoc {
     const n = this.get(id);
     if (!isClaim(n) || n!.parent === null) return false;
     const oldGroup = n!.parent;
+    const stance = stanceOf(n, this.get(oldGroup));
     this.transact(() => {
-      this.update(id, { parent: null, order: this.orderAfter(null), x: Math.round(x), y: Math.round(y), dx: undefined, dy: undefined, stance: undefined });
+      this.update(id, { parent: null, order: this.orderAfter(null), x: Math.round(x), y: Math.round(y), dx: undefined, dy: undefined, stance });
       this.dropEmptyGroup(oldGroup);
     });
     return true;
@@ -521,7 +526,7 @@ export class MapDoc {
         this.update(id, { parent: targetId, order: this.orderAfter(targetId), ...reset, stance: was && was !== t.kind ? was : undefined });
       } else {
         const group = newId();
-        this.put({ id: group, kind: 'reason', parent: targetId, order: this.orderAfter(targetId), text: '' });
+        this.put({ id: group, kind: oldParent === null ? n.stance ?? 'reason' : 'reason', parent: targetId, order: this.orderAfter(targetId), text: '' });
         this.update(id, { parent: group, order: 1, ...reset, stance: undefined });
       }
       if (t.collapsed) this.update(targetId, { collapsed: undefined });
@@ -569,7 +574,7 @@ export class MapDoc {
         implicit: c.implicit || undefined, collapsed: c.collapsed || undefined,
         style: c.style, note: c.note, link: c.link, evidence:c.evidence, questions:c.questions, review:c.review, passage:c.passage, excerpt:c.excerpt,
         ...(c.kind === 'sticky' && c.w ? { w: c.w, h: c.h } : {}),
-        ...(c.stance && parent && isGroup(this.get(parent)) && this.get(parent)!.kind !== c.stance ? { stance: c.stance } : {}),
+        ...(c.stance && (!parent || (isGroup(this.get(parent)) && this.get(parent)!.kind !== c.stance)) ? { stance: c.stance } : {}),
         ...extra,
       });
       for (const ch of c.children ?? []) insert(ch, id);
@@ -585,7 +590,7 @@ export class MapDoc {
           if (isGroup(target)) out.push(insert(c, target!.id));
           else if (isClaim(target)) {
             const g = newId();
-            this.put({ id: g, kind: 'reason', parent: target!.id, order: this.orderAfter(target!.id), text: '' });
+            this.put({ id: g, kind: c.stance ?? 'reason', parent: target!.id, order: this.orderAfter(target!.id), text: '' });
             out.push(insert(c, g));
           } else {
             out.push(insert(c, null, { x: Math.round(x + offset), y: Math.round(y) }));
