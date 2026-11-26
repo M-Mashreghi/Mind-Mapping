@@ -34,7 +34,7 @@ export function NodeEditor({ editor, text, initial, style }: Props) {
   const finish = (commit: boolean) => {
     if (done.current) return;
     done.current = true;
-    const value = ref.current ? ref.current.innerText.replace(/ /g, ' ') : null;
+    const value = ref.current ? (ref.current.innerText ?? ref.current.textContent ?? '').replace(/ /g, ' ') : null;
     editor.finishEditing(commit ? value : null);
   };
 
