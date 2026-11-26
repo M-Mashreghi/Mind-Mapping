@@ -20,3 +20,5 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build:web
+      - run: node scripts/smoke-browser.mjs
+        timeout-minutes: 2
