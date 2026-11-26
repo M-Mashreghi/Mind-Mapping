@@ -166,6 +166,47 @@ try {
   await until(()=>evaluate('!!document.querySelector(".context-menu")'));
   await evaluate('Array.from(document.querySelectorAll(".context-menu .menu-item")).find(el=>el.textContent.includes("Make Ultimate Conclusion")).click()');
   await until(()=>evaluate('!!document.querySelector('+JSON.stringify('.claim.root[data-node-id="'+multi.b+'"]')+')'));
+  const groupDrop = await evaluate(`(() => {
+    const e=window.argmapEditor;
+    e.loadFile({format:'argument-mapper',version:1,title:'Shared bracket',nodes:[]});
+    const root=e.doc.addRoot('Conclusion',280,26), g=e.doc.addGroup(root,'reason','First');
+    const second=e.doc.addPremise(g.groupId,undefined,'Second'), third=e.doc.addPremise(g.groupId,undefined,'Third');
+    e.doc.addGroup(root,'objection','Objection');
+    e.select([g.premiseId,second]); e.setView({x:0,y:0,zoom:.8});
+    return {first:g.premiseId,second,third,id:g.groupId,width:e.layout.boxes.get(g.groupId).w};
+  })()`);
+  const origin=await point('.claim[data-node-id="'+groupDrop.first+'"]');
+  const dropAt={x:origin.x+28,y:origin.y+98};
+  await send('Input.dispatchMouseEvent',{type:'mousePressed',...origin,button:'left',buttons:1,clickCount:1});
+  await send('Input.dispatchMouseEvent',{type:'mouseMoved',...dropAt,buttons:1});
+  await until(()=>evaluate('!!document.querySelector(".detach-hint")'));
+  await send('Input.dispatchMouseEvent',{type:'mouseReleased',...dropAt,button:'left',clickCount:1});
+  const check=JSON.stringify(groupDrop);
+  await until(()=>evaluate(`(()=>{const g=${check},e=window.argmapEditor;
+    return [g.first,g.second].every(id=>e.doc.get(id).parent===null && e.doc.get(id).stance==='reason' && !e.labels.has(id))
+      && e.doc.get(g.third).parent===g.id && e.layout.boxes.get(g.id).w<g.width;})()`));
+  console.log('Chrome passed: dragging two co-premises out shrinks a three-premise bracket');
+
+  await evaluate('window.dispatchEvent(new Event("argmap:theme"))');
+  await until(()=>evaluate('Array.from(document.querySelectorAll(".tabs button")).some(b=>b.textContent==="Color")'));
+  await clickLabel('Color');
+  for(const mode of ['dark','light']){
+    await evaluate('window.argmapEditor.setAppearance('+JSON.stringify(mode)+')');
+    await until(()=>evaluate('document.documentElement.dataset.theme==='+JSON.stringify(mode)+' && document.querySelectorAll(".theme-body input[type=color]").length===10'));
+    const snapshot = () => evaluate(`(() => {
+      const props=['--bg','--reason-ink','--reason-fill','--reason-line','--objection-ink','--objection-fill','--objection-line','--root-ink','--root-fill','--root-line'];
+      const style=getComputedStyle(document.querySelector('.canvas'));
+      const hex = value => /^#[0-9a-f]{3}$/i.test(value) ? value.replace(/[0-9a-f]/gi,c=>c+c) : value;
+      return {actual:Array.from(document.querySelectorAll('.theme-body input[type=color]'),i=>i.value.toLowerCase()),expected:props.map(p=>hex(style.getPropertyValue(p).trim().toLowerCase()))};
+    })()`);
+    await until(async()=>{const view=await snapshot();return view.actual.join()===view.expected.join();});
+
+  }
+  await evaluate('window.argmapEditor.setTheme({reason:{...window.argmapEditor.doc.theme.reason,fill:"#123456"}})');
+  await until(()=>evaluate('document.querySelectorAll(".theme-body input[type=color]")[2].value==="#123456"'));
+  await evaluate('document.querySelectorAll(".theme-body input[type=color]")[2].closest(".color-field").querySelector("button").click()');
+  await until(()=>evaluate('document.querySelectorAll(".theme-body input[type=color]")[2].value===getComputedStyle(document.querySelector(".canvas")).getPropertyValue("--reason-fill").trim() && !window.argmapEditor.doc.theme.reason.fill'));
+  console.log('Chrome passed: all ten theme picker swatches match canvas defaults in light and dark, including custom/reset');
   console.log('Chrome passed: rectangle selection, multi-drag, join and right-click promotion');
   console.log('Chrome passed: floating green premise without conclusion badge, then drag to reconnect');
   console.log('Chrome passed: hover stance switch in both directions and detached co-premise bracket shrink');

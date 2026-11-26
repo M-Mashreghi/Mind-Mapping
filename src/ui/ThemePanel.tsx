@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Editor } from '../editor';
 import { ColorSet, FontSize, Theme } from '../model/types';
-import { FONTS, FONT_SIZES } from '../theme';
+import { FONTS, FONT_SIZES, readableOn } from '../theme';
+import { readColors } from '../export/svg';
 import { Dialog } from './Dialogs';
 
 type Tab = 'layout' | 'color' | 'text' | 'shape';
@@ -18,23 +19,25 @@ function Choice<T extends string | number | boolean>({ value, options, onChange 
   );
 }
 
-function ColorField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+function ColorField({ label, value, fallback, onChange }: { label: string; value: string; fallback: string; onChange: (v: string) => void }) {
+  const color = value || fallback;
+  const hex = /^#[0-9a-f]{3}$/i.test(color) ? color.replace(/[0-9a-f]/gi, digit => digit + digit) : color;
   return (
-    <label className="color-field">
+    <div className="color-field">
       <span>{label}</span>
-      <input type="color" value={value || '#888888'} onChange={(e) => onChange(e.target.value)} />
+      <input type="color" aria-label={label} value={hex} onChange={(e) => onChange(e.target.value)} />
       {value ? <button className="link-button" onClick={() => onChange('')}>Default</button> : <span className="muted">Default</span>}
-    </label>
+    </div>
   );
 }
 
-function ColorSetFields({ title, set, onChange }: { title: string; set: ColorSet; onChange: (s: ColorSet) => void }) {
+function ColorSetFields({ title, set, defaults, onChange }: { title: string; set: ColorSet; defaults: ColorSet; onChange: (s: ColorSet) => void }) {
   return (
     <fieldset>
       <legend>{title}</legend>
-      <ColorField label="Text" value={set.text} onChange={(text) => onChange({ ...set, text })} />
-      <ColorField label="Fill" value={set.fill} onChange={(fill) => onChange({ ...set, fill })} />
-      <ColorField label="Border" value={set.border} onChange={(border) => onChange({ ...set, border })} />
+      <ColorField label="Text" value={set.text} fallback={defaults.text} onChange={(text) => onChange({ ...set, text })} />
+      <ColorField label="Fill" value={set.fill} fallback={defaults.fill} onChange={(fill) => onChange({ ...set, fill })} />
+      <ColorField label="Border" value={set.border} fallback={defaults.border} onChange={(border) => onChange({ ...set, border })} />
     </fieldset>
   );
 }
@@ -42,6 +45,16 @@ function ColorSetFields({ title, set, onChange }: { title: string; set: ColorSet
 /** Map-wide theme: layout, colours, text and shapes. */
 export function ThemePanel({ editor, onClose }: { editor: Editor; onClose: () => void }) {
   const [tab, setTab] = useState<Tab>('layout');
+  const [palette,setPalette] = useState(() => readColors(document.documentElement));
+  useEffect(() => {
+    const refresh = () => setPalette(readColors(document.documentElement));
+    const system = window.matchMedia?.('(prefers-color-scheme: dark)');
+    const observer = new MutationObserver(refresh);
+    observer.observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+    system?.addEventListener('change',refresh);
+    refresh();
+    return () => { observer.disconnect(); system?.removeEventListener('change',refresh); };
+  }, []);
   const t = editor.doc.theme;
   const set = (patch: Partial<Theme>) => editor.setTheme(patch);
   return (
@@ -73,10 +86,10 @@ export function ThemePanel({ editor, onClose }: { editor: Editor; onClose: () =>
         {tab === 'color' ? (
           <>
             <h3>Canvas</h3>
-            <ColorField label="Background" value={t.canvas} onChange={(canvas) => set({ canvas })} />
-            <ColorSetFields title="Reasons (support)" set={t.reason} onChange={(reason) => set({ reason })} />
-            <ColorSetFields title="Objections" set={t.objection} onChange={(objection) => set({ objection })} />
-            <ColorSetFields title="Root claim" set={t.root} onChange={(root) => set({ root })} />
+            <ColorField label="Background" value={t.canvas} fallback={palette.bg} onChange={(canvas) => set({ canvas })} />
+            <ColorSetFields title="Reasons (support)" set={t.reason} defaults={{text:palette.reasonInk,fill:palette.reasonFill,border:palette.reasonLine}} onChange={(reason) => set({ reason })} />
+            <ColorSetFields title="Objections" set={t.objection} defaults={{text:palette.objectionInk,fill:palette.objectionFill,border:palette.objectionLine}} onChange={(objection) => set({ objection })} />
+            <ColorSetFields title="Root claim" set={t.root} defaults={{text:t.root.fill ? readableOn(t.root.fill) : palette.rootInk,fill:palette.rootFill,border:palette.rootLine}} onChange={(root) => set({ root })} />
           </>
         ) : null}
         {tab === 'text' ? (

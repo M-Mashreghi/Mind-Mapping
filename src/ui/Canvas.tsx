@@ -228,9 +228,9 @@ export function Canvas({ editor, onContextMenu }: Props) {
     d.dy = sdy / view.zoom;
     const p = local(e);
     const m = editor.screenToMap(p.x, p.y);
-    const hit = hitTest(layout, m.x, m.y, d.moving);
+    const hit = hitTest(layout, m.x, m.y, d.moving, true);
     d.target = hit && d.ids.some((id) => doc.canMove(id, hit.id)) ? hit.id : null;
-    d.detachHint = d.ids.length === 1 && !hit && !e.shiftKey && d.ids.some(id => { const n = doc.get(id); return n?.kind === 'claim' && n.parent; });
+    d.detachHint = !hit && !e.shiftKey && d.ids.some(id => { const n = doc.get(id); return n?.kind === 'claim' && n.parent; });
     setDrag({ ...d });
   };
 
@@ -258,9 +258,9 @@ export function Canvas({ editor, onContextMenu }: Props) {
     if (!d || !d.active) return;
     const point = local(e);
     const mapPoint = editor.screenToMap(point.x, point.y);
-    const hit = hitTest(layout, mapPoint.x, mapPoint.y, d.moving);
+    const hit = hitTest(layout, mapPoint.x, mapPoint.y, d.moving, true);
     const target = hit && d.ids.some(id => doc.canMove(id, hit.id)) ? hit.id : null;
-    editor.drop(d.ids, target, (e.clientX - d.startX) / view.zoom, (e.clientY - d.startY) / view.zoom, d.ids.length === 1 && !hit && !e.shiftKey);
+    editor.drop(d.ids, target, (e.clientX - d.startX) / view.zoom, (e.clientY - d.startY) / view.zoom, !hit && !e.shiftKey);
   };
 
   const onDoubleClick = (e: React.MouseEvent) => {

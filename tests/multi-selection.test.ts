@@ -78,3 +78,22 @@ it('pastes jointly selected co-premises under a single fresh group on the destin
   expect(groups[0]).toMatchObject({kind:'objection',text:'Because of cost'});
   expect(e.doc.children(groups[0].id)).toHaveLength(2);expect(e.doc.get(e.selection[1])?.stance).toBe('reason');
 });
+
+it('unlinks just the dragged co-premises, preserving position, stance and undo',()=>{
+  const {e,a,groupId,premiseId,second}=fixture();
+  const remaining=e.doc.addPremise(groupId,undefined,'Keep linked')!;
+  e.doc.setPremiseStance(second,'reason');
+  const child=e.doc.addGroup(second,'reason','Evidence')!;
+  const prior=e.layout;
+  e.drop([premiseId,second,child.premiseId],null,-45,100,true);
+  for(const [id,stance] of [[premiseId,'objection'],[second,'reason']]){
+    const box=prior.boxes.get(id)!;
+    expect(e.doc.get(id)).toMatchObject({parent:null,stance,x:Math.round(box.x+box.w/2-45),y:Math.round(box.y+100)});
+    expect(e.labels.has(id)).toBe(false);
+  }
+  expect(e.layout.boxes.get(groupId)!.w).toBeLessThan(prior.boxes.get(groupId)!.w);
+  expect(e.doc.get(groupId)?.parent).toBe(a);
+  expect(e.doc.children(groupId).map(n=>n.id)).toEqual([remaining]);
+  expect(e.doc.get(child.premiseId)?.parent).toBe(child.groupId);
+  e.undo();expect(e.doc.children(groupId)).toHaveLength(3);
+});

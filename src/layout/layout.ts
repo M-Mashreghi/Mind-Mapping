@@ -325,13 +325,15 @@ export function placeLineLabels(
 }
 
 /** Topmost box under a point (claims win over the group boxes behind them). */
-export function hitTest(layout: LayoutResult, x: number, y: number, exclude?: Set<string>): Box | undefined {
+export function hitTest(layout: LayoutResult, x: number, y: number, exclude?: Set<string>, bracketOnly = false): Box | undefined {
   let hitGroup: Box | undefined;
   for (const b of layout.boxes.values()) {
     if (exclude?.has(b.id)) continue;
     if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) {
       if (b.kind === 'claim' || b.kind === 'sticky') return b;
-      hitGroup = b;
+      // Only the painted bracket is a drop target. The empty area below it can
+      // be very large in maps saved after earlier linked nudges.
+      if (!bracketOnly || y <= b.y + LAYOUT.groupLabel) hitGroup = b;
     }
   }
   return hitGroup;
