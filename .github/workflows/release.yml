@@ -1,79 +1,25 @@
-name: Build desktop apps
-
-# Builds the Windows installer/portable app, the Linux AppImage/.deb and the macOS .dmg
-# (Apple Silicon and Intel; ad-hoc signed, not notarized).
-# - Run it by hand from the Actions tab ("Run workflow") to get downloadable builds.
-# - Push a tag like v0.2.0, or run it by hand with a version filled in, to also
-#   publish them on a GitHub Release.
+name: Publish tested 0.3.1 artifacts
 on:
-  workflow_dispatch:
-    inputs:
-      version:
-        description: 'Publish a GitHub Release with this version, e.g. 0.1.0 (leave empty to only build)'
-        required: false
-        default: ''
   push:
-    tags: ['v*']
     branches: ['release/0.3.1']
-
 permissions:
+  actions: read
   contents: write
-
 jobs:
-  build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: windows-latest
-            target: --win
-          - os: ubuntu-latest
-            target: --linux
-          - os: macos-latest
-            target: --mac
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm test
-      - run: npm run build
-        env:
-          # Google Drive sign-in. Add it under Settings → Secrets and variables → Actions.
-          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
-      - run: npx electron-builder ${{ matrix.target }} --publish never
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/upload-artifact@v4
-        with:
-          name: argument-mapper-${{ matrix.os }}
-          path: |
-            release/*.exe
-            release/*.AppImage
-            release/*.deb
-            release/*.dmg
-          if-no-files-found: error
-
-  release:
-    if: startsWith(github.ref, 'refs/tags/v') || inputs.version != '' || github.event_name == 'push'
-    needs: build
+  publish:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - id: version
-        run: echo "tag=v$(node -p \"require('./package.json').version\")" >> "$GITHUB_OUTPUT"
       - uses: actions/download-artifact@v4
         with:
+          run-id: 45727507570
+          github-token: ${{ github.token }}
           path: artifacts
           merge-multiple: true
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: v0.3.1
+          name: Argument Mapper 0.3.1
+          target_commitish: a4f39cd8003241274e3b0f5b0f15de8d1a572ff7
           files: artifacts/*
+          fail_on_unmatched_files: true
           generate_release_notes: true
-          # When run by hand, create the tag on the commit that was built.
-          tag_name: ${{ inputs.version != '' && format('v{0}', inputs.version) || (github.ref_type == 'tag' && github.ref_name) || steps.version.outputs.tag }}
-          name: ${{ inputs.version != '' && format('Argument Mapper {0}', inputs.version) || (github.ref_type == 'tag' && github.ref_name) || steps.version.outputs.tag }}
-          target_commitish: ${{ github.sha }}
