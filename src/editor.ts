@@ -707,11 +707,40 @@ export class Editor {
     });
   }
 
-  detach(): void {
+  makeConclusion(): void {
+    if (this.readOnly) return this.flashReadOnly();
     this.commitEditing();
+    const node = this.doc.get(this.primary);
+    if (!node || node.kind === 'sticky') return;
+    const box = this.layout.boxes.get(node.id);
+    if (!box) return;
+    const x = box.x + box.w / 2, y = box.y;
+    let result = node.id;
     this.doc.transact(() => {
-      for (const id of this.selection) {
-        const b = this.layout.boxes.get(id);
+      if (isGroup(node)) {
+        const children = this.doc.children(node.id);
+        if (children.length !== 1) {
+          result = this.doc.addRoot('', x, y - 100);
+          this.doc.move(node.id, result);
+          return;
+        }
+        result = children[0].id;
+      }
+      this.doc.detach(result, x, y);
+      this.doc.update(result, { stance: undefined });
+    });
+    this.select([result]);
+    if (!this.doc.get(result)?.text) this.startEditing(result);
+  }
+
+  detach(): void {
+    if (this.readOnly) return this.flashReadOnly();
+    this.commitEditing();
+    const boxes = this.layout.boxes;
+    const ids = this.doc.selectionRoots(this.selection);
+    this.doc.transact(() => {
+      for (const id of ids) {
+        const b = boxes.get(id);
         if (!b) continue;
         this.doc.detach(id, b.x + b.w / 2 + 40, b.y + 40);
       }
@@ -852,21 +881,54 @@ export class Editor {
   // ------------------------------------------------------------ drag & drop
 
   /** Drop `ids` at a map point: onto a target node, or nudge them by (ddx, ddy). */
+  joinBranches(ids: string[], target: string): boolean {
+    if (this.readOnly) return false;
+    const roots = this.doc.selectionRoots(ids);
+    if (!roots.length || !roots.every(id => this.doc.get(id)?.parent === target || this.doc.canMove(id,target))) return false;
+    const chosen = new Set(roots);
+    const transferred = new Set<string>();
+    this.doc.transact(() => {
+      for (const id of roots) {
+        const node = this.doc.get(id)!;
+        if (node.parent === target || transferred.has(id)) continue;
+        const group = this.doc.get(node.parent);
+        if (roots.length > 1 && node.kind === 'claim' && group && isGroup(group) && this.doc.get(target)?.kind === 'claim') {
+          const siblings = this.doc.children(group.id);
+          const selectedSiblings = siblings.filter(p => chosen.has(p.id));
+          if (selectedSiblings.length === siblings.length) {
+            if (group.parent !== target) this.doc.move(group.id,target);
+            siblings.forEach(p => transferred.add(p.id));
+            continue;
+          }
+          if (selectedSiblings.length > 1) {
+            const split = this.doc.addGroup(target,group.kind as 'reason'|'objection');
+            if (split) {
+              for (const p of selectedSiblings) {
+                this.doc.move(p.id,split.groupId);
+                transferred.add(p.id);
+              }
+              this.doc.remove([split.premiseId]);
+              continue;
+            }
+          }
+        }
+        this.doc.move(id,target);
+      }
+    });
+    return true;
+  }
+
   drop(ids: string[], targetId: string | null, ddx: number, ddy: number, detachOnBlank = false): void {
     if (this.readOnly) return this.flashReadOnly();
-    if (targetId) {
-      const movable = ids.filter((id) => this.doc.get(id)?.parent !== targetId && this.doc.canMove(id, targetId));
-      if (movable.length) {
-        this.doc.transact(() => movable.forEach((id) => this.doc.move(id, targetId)));
-        return;
-      }
+    ids = this.doc.selectionRoots(ids);
+    if (targetId && ids.some(id => this.doc.get(id)?.parent !== targetId)) {
+      if (!this.joinBranches(ids,targetId)) this.flash('Choose a destination that can accept every selected branch.');
+      return;
     }
     // Keep all drop coordinates from the same layout, even when detaching siblings.
     const boxes = this.layout.boxes;
     this.doc.transact(() => {
       for (const id of ids) {
-        // Skip nodes whose ancestor is also being dragged; they move with it.
-        if (ids.some((o) => o !== id && this.doc.isAncestor(o, id))) continue;
         const box = boxes.get(id);
         if (!targetId && detachOnBlank && box && this.doc.detach(id, box.x + box.w / 2 + ddx, box.y + ddy)) continue;
         this.doc.nudge(id, ddx, ddy);

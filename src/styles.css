@@ -2883,3 +2883,9 @@ img.emoji {
 }
 .group > .stance-switch {top: 0; left: auto; right: 4px;}
 .detach-hint {white-space: nowrap; pointer-events: none;}
+
+.selection-marquee {position:fixed;pointer-events:none;z-index:8;border:1px solid var(--brand);background:var(--brand-soft)}
+.multi-selection {position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:10;display:flex;align-items:center;gap:5px;max-width:95%;padding:5px 8px;background:var(--surface);border:1px solid var(--line);border-radius:9px;box-shadow:var(--shadow)}
+.multi-selection strong {white-space:nowrap;font-size:12px}
+.multi-selection button,.multi-selection select {font:inherit;color:var(--ink);background:var(--surface-2);border:0;border-radius:5px;padding:4px 6px;cursor:pointer}
+.multi-selection select {max-width:115px}

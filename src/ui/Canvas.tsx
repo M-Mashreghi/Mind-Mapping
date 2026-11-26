@@ -35,6 +35,28 @@ interface DragState {
   detachHint?: boolean;
 }
 
+interface Marquee {
+  pointerId: number;
+  startX: number;
+  startY: number;
+  x: number;
+  y: number;
+  base: string[];
+  boxes: {id: string; rect: DOMRect}[];
+}
+
+function rectangleHits(m: Marquee): string[] {
+  const left = Math.min(m.startX,m.x), right = Math.max(m.startX,m.x);
+  const top = Math.min(m.startY,m.y), bottom = Math.max(m.startY,m.y);
+  const ids = new Set(m.base);
+  if (right-left > 3 || bottom-top > 3) {
+    for (const {id,rect} of m.boxes) {
+      if (rect.left <= right && rect.right >= left && rect.top <= bottom && rect.bottom >= top) ids.add(id);
+    }
+  }
+  return [...ids];
+}
+
 interface PanState {
   pointerId: number;
   startX: number;
@@ -52,7 +74,20 @@ export function Canvas({ editor, onContextMenu }: Props) {
   const panRef = useRef<PanState | null>(null);
 
   const { layout, view, selection, editing, doc } = editor;
-  const selected = new Set(selection);
+  const marqueeRef = useRef<Marquee | null>(null);
+  const [marquee,setMarquee] = useState<Marquee | null>(null);
+  const selected = new Set(marquee ? rectangleHits(marquee) : selection);
+  const cancelMarquee = () => { marqueeRef.current = null; setMarquee(null); };
+  useEffect(() => {
+    const cancel = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && marqueeRef.current) {
+        event.preventDefault();
+        cancelMarquee();
+      }
+    };
+    window.addEventListener('keydown',cancel,true);
+    return () => window.removeEventListener('keydown',cancel,true);
+  }, []);
 
   // Keep the editor informed of the viewport size.
   useLayoutEffect(() => {
@@ -118,6 +153,19 @@ export function Canvas({ editor, onContextMenu }: Props) {
       editor.connectTo(id);
       return;
     }
+    if (!id && editor.tool === 'select' && !editor.presentation) {
+      editor.commitEditing();
+      const boxes = Array.from(ref.current!.querySelectorAll<HTMLElement>('.claim[data-node-id], .sticky[data-node-id]'))
+        .filter(el => getComputedStyle(el).visibility !== 'hidden')
+        .map(el => ({id:el.dataset.nodeId!,rect:el.getBoundingClientRect()}));
+      const m: Marquee = {pointerId:e.pointerId,startX:e.clientX,startY:e.clientY,x:e.clientX,y:e.clientY,
+        base:e.shiftKey || e.ctrlKey || e.metaKey ? [...selection] : [],boxes};
+      marqueeRef.current = m;
+      setMarquee(m);
+      e.currentTarget.setPointerCapture(e.pointerId);
+      e.preventDefault();
+      return;
+    }
     if (!id || editor.tool === 'pan') {
       editor.commitEditing();
       panRef.current = {
@@ -146,6 +194,13 @@ export function Canvas({ editor, onContextMenu }: Props) {
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
+    const area = marqueeRef.current;
+    if (area && area.pointerId === e.pointerId) {
+      const next = {...area,x:e.clientX,y:e.clientY};
+      marqueeRef.current = next;
+      setMarquee(next);
+      return;
+    }
     if(wire){
       const p=local(e),m=editor.screenToMap(p.x,p.y);
       const target=document.elementFromPoint(e.clientX,e.clientY)?.closest<HTMLElement>('[data-node-id]')?.dataset.nodeId;
@@ -175,11 +230,17 @@ export function Canvas({ editor, onContextMenu }: Props) {
     const m = editor.screenToMap(p.x, p.y);
     const hit = hitTest(layout, m.x, m.y, d.moving);
     d.target = hit && d.ids.some((id) => doc.canMove(id, hit.id)) ? hit.id : null;
-    d.detachHint = !hit && !e.shiftKey && d.ids.some(id => { const n = doc.get(id); return n?.kind === 'claim' && n.parent; });
+    d.detachHint = d.ids.length === 1 && !hit && !e.shiftKey && d.ids.some(id => { const n = doc.get(id); return n?.kind === 'claim' && n.parent; });
     setDrag({ ...d });
   };
 
   const onPointerUp = (e: React.PointerEvent) => {
+    const m = marqueeRef.current;
+    if (m && m.pointerId === e.pointerId) {
+      editor.select(rectangleHits({...m,x:e.clientX,y:e.clientY}));
+      cancelMarquee();
+      return;
+    }
     if(wire){
       const id=document.elementFromPoint(e.clientX,e.clientY)?.closest<HTMLElement>('[data-node-id]')?.dataset.nodeId;
       if(!editor.readOnly && id && id!==wire.source)doc.addConnection(wire.source,id);
@@ -199,7 +260,7 @@ export function Canvas({ editor, onContextMenu }: Props) {
     const mapPoint = editor.screenToMap(point.x, point.y);
     const hit = hitTest(layout, mapPoint.x, mapPoint.y, d.moving);
     const target = hit && d.ids.some(id => doc.canMove(id, hit.id)) ? hit.id : null;
-    editor.drop(d.ids, target, (e.clientX - d.startX) / view.zoom, (e.clientY - d.startY) / view.zoom, !hit && !e.shiftKey);
+    editor.drop(d.ids, target, (e.clientX - d.startX) / view.zoom, (e.clientY - d.startY) / view.zoom, d.ids.length === 1 && !hit && !e.shiftKey);
   };
 
   const onDoubleClick = (e: React.MouseEvent) => {
@@ -224,6 +285,7 @@ export function Canvas({ editor, onContextMenu }: Props) {
     const id = target?.dataset.nodeId;
     if (id) {
       if (!selected.has(id)) editor.select([id]);
+      else if (editor.primary !== id) editor.select([...selection.filter(key => key !== id), id]);
       onContextMenu('node', e.clientX, e.clientY);
     } else {
       onContextMenu('canvas', e.clientX, e.clientY);
@@ -273,12 +335,16 @@ export function Canvas({ editor, onContextMenu }: Props) {
       }}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
-      onPointerCancel={()=>{setWire(null);setDrag(null);dragRef.current=null;panRef.current=null;}}
+      onPointerCancel={()=>{cancelMarquee();setWire(null);setDrag(null);dragRef.current=null;panRef.current=null;}}
       onDoubleClick={onDoubleClick}
       onContextMenu={onContext}
       onPointerLeave={() => editor.setCursor(null)}
     >
       {editor.presentation ? <style>{presentCss(editor)}</style> : null}
+      {marquee && <div className="selection-marquee" style={{
+        left:Math.min(marquee.x,marquee.startX),top:Math.min(marquee.y,marquee.startY),
+        width:Math.abs(marquee.x-marquee.startX),height:Math.abs(marquee.y-marquee.startY)
+      }}/>}
       <div className="world" style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})` }}>
         <svg className="edges" width="1" height="1" overflow="visible" aria-hidden="true">
           <defs>
