@@ -13,6 +13,7 @@ function labelWidth(text: string): number {
 }
 import { Connection, LineStyle, MapNode, STICKY, Theme, stanceOf } from '../model/types';
 import { boxStyle, textStyle, themeVars } from '../theme';
+import { attach, dropLabel } from '../model/workspace';
 import { NodeEditor } from './NodeEditor';
 import { Emoji } from './Emoji';
 
@@ -210,7 +211,7 @@ export function Canvas({ editor, onContextMenu }: Props) {
     drag?.active && drag.moving.has(id) ? { dx: drag.dx, dy: drag.dy } : { dx: 0, dy: 0 };
 
   const nodes = new Map<string, MapNode>(doc.all().map((n) => [n.id, n]));
-  const boxes = [...layout.boxes.values()];
+  const boxes = [...layout.boxes.values()].filter(b=>!nodes.get(b.id)?.tray);
   const groups = boxes.filter((b) => b.kind === 'reason' || b.kind === 'objection');
   const claims = boxes.filter((b) => b.kind === 'claim' || b.kind === 'sticky');
   const theme = doc.theme;
@@ -237,6 +238,16 @@ export function Canvas({ editor, onContextMenu }: Props) {
       role="application"
       aria-label="Argument map"
       onPointerDown={onPointerDown}
+      onDragOver={ev=>{if(!editor.readOnly&&ev.dataTransfer.types.includes('application/x-argument-idea'))ev.preventDefault();}}
+      onDrop={ev=>{
+        if(editor.readOnly)return;
+        const idea=doc.get(ev.dataTransfer.getData('application/x-argument-idea'));
+        const target=(ev.target as Element).closest<HTMLElement>('[data-node-id]')?.dataset.nodeId;
+        if(!idea?.tray||!target||doc.get(target)?.kind!=='claim')return;
+        ev.preventDefault();
+        const choice=window.prompt('Place idea as reason or objection?', 'reason')?.trim().toLowerCase();
+        if(choice==='reason'||choice==='objection')doc.ydoc.transact(()=>{if(attach(doc,target,choice,idea.text))doc.remove([idea.id]);},doc);
+      }}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
@@ -265,6 +276,11 @@ export function Canvas({ editor, onContextMenu }: Props) {
             <EdgePath key={`hit-${edge.from}`} hit edge={edge} lineStyle={theme.lineStyle} from={offsetFor(edge.from)} to={offsetFor(edge.to)} />
           ))}
         </svg>
+        {drag?.active && drag.target && (() => {
+          const to=layout.boxes.get(drag.target), from=layout.boxes.get(drag.ids[0]), target=doc.get(drag.target);
+          if(!to||!from||!target)return null;
+          return <><svg className="edges" width="1" height="1" overflow="visible"><line x1={from.x+drag.dx+from.w/2} y1={from.y+drag.dy+from.h/2} x2={to.x+to.w/2} y2={to.y+to.h/2} stroke="var(--brand)" strokeDasharray="5 4"/></svg><span className="idea-drop-preview" style={{left:to.x,top:to.y-27}}>{dropLabel(target,doc.get(drag.ids[0]))}</span></>;
+        })()}
         {groups.map((b) => (
           <GroupView key={b.id} box={b} node={nodes.get(b.id)!} offset={offsetFor(b.id)} selected={selected.has(b.id)} dropTarget={drag?.target === b.id} />
         ))}
@@ -326,6 +342,7 @@ export function Canvas({ editor, onContextMenu }: Props) {
             <ConnectionPath
               key={c.id}
               conn={c}
+              annotation={nodes.get(c.from)?.kind==='sticky'||nodes.get(c.to)?.kind==='sticky'}
               a={layout.boxes.get(c.from)}
               b={layout.boxes.get(c.to)}
               oa={offsetFor(c.from)}
@@ -366,7 +383,7 @@ function exitPoint(b: Box, o: Off, tx: number, ty: number) {
   return { x: cx + dx * k, y: cy + dy * k };
 }
 
-function ConnectionPath({ conn, a, b, oa, ob, selected }: { conn: Connection; a?: Box; b?: Box; oa: Off; ob: Off; selected: boolean }) {
+function ConnectionPath({ conn, a, b, oa, ob, selected, annotation }: { annotation:boolean; conn: Connection; a?: Box; b?: Box; oa: Off; ob: Off; selected: boolean }) {
   if (!a || !b) return null;
   const ca = { x: a.x + oa.dx + a.w / 2, y: a.y + oa.dy + a.h / 2 };
   const cb = { x: b.x + ob.dx + b.w / 2, y: b.y + ob.dy + b.h / 2 };
@@ -374,9 +391,9 @@ function ConnectionPath({ conn, a, b, oa, ob, selected }: { conn: Connection; a?
   const p2 = exitPoint(b, ob, ca.x, ca.y);
   const d = `M${p1.x} ${p1.y} L${p2.x} ${p2.y}`;
   return (
-    <g data-connection-id={conn.id} className={`connection${selected ? ' selected' : ''}`}>
+    <g data-from={conn.from} data-to={conn.to} data-connection-id={conn.id} className={`connection${selected ? ' selected' : ''}`}>
       <path className="connection-hit" d={d} />
-      <path className="connection-line" d={d} markerEnd="url(#arrow-link)" />
+      <path className="connection-line" d={d} strokeDasharray={annotation ? "6 5" : undefined} markerEnd={annotation ? undefined : "url(#arrow-link)"} />
     </g>
   );
 }
@@ -547,6 +564,8 @@ function ClaimView({ box, node, theme, label, match, offset, selected, dropTarge
           {node.text || placeholder}
         </div>
       )}
+      {node.evidence?.length ? <button className="node-badge" title={node.evidence.map(v=>[v.source,v.page,v.quote].filter(Boolean).join(' · ')).join('\n')} onClick={()=>window.alert(node.evidence!.map(v=>[v.source,v.page,v.quote].filter(Boolean).join(' · ')).join('\n'))}>Sources ({node.evidence.length})</button>:null}
+      {node.questions?.some(q=>!q.answer) && <span title={node.questions.map(q=>q.text).join('\n')}>?</span>}
       {offStance ? <span className={`stance-bar stance-${groupKind}`} aria-hidden="true" /> : null}
       {label ? <span className="node-label">{label}</span> : null}
       {canResize ? (

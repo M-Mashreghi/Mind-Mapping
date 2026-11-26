@@ -316,7 +316,7 @@ export async function buildSvg(input: SvgInput): Promise<{ svg: string; width: n
     };
     const p1 = exit(a, bb.x + bb.w / 2, bb.y + bb.h / 2);
     const p2 = exit(bb, a.x + a.w / 2, a.y + a.h / 2);
-    parts.push(`<path d="M${p1.x} ${p1.y} L${p2.x} ${p2.y}" fill="none" stroke="${c.ink3}" stroke-width="1.5" stroke-dasharray="6 5" marker-end="url(#al)"/>`);
+    parts.push(`<path d="M${p1.x} ${p1.y} L${p2.x} ${p2.y}" fill="none" stroke="${c.ink3}" stroke-width="1.5" stroke-dasharray="6 5"${a.kind === 'sticky' || bb.kind === 'sticky' ? '' : ' marker-end="url(#al)"'}/>`);
   }
 
   parts.push('</g></svg>');

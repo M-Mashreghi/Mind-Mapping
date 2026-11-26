@@ -149,6 +149,7 @@ function AlignIcon({ align }: { align: 'left' | 'center' | 'right' }) {
 
 /** Quick-add buttons around the selected box: co-premise to the right, reason and objection below. */
 export function AddHandles({ editor }: { editor: Editor }) {
+  const [choice,setChoice]=useState<string|null>(null);
   const id = editor.primary;
   const box = id ? editor.layout.boxes.get(id) : undefined;
   const node = editor.doc.get(id);
@@ -158,6 +159,7 @@ export function AddHandles({ editor }: { editor: Editor }) {
   const top = box.y * zoom + y;
   const w = box.w * zoom;
   const h = box.h * zoom;
+  const reply = (node.stance ?? editor.doc.get(node.parent)?.kind) === 'objection';
   const stop = (e: React.PointerEvent) => e.stopPropagation();
   return (
     <>
@@ -169,13 +171,19 @@ export function AddHandles({ editor }: { editor: Editor }) {
         </button>
       ) : null}
       <div className="add-below" style={{ left: left + w / 2, top: top + h + 12 }} onPointerDown={stop}>
-        <button className="add-handle add-reason" title="Add a reason (Alt+S)" aria-label="Add reason" onClick={() => editor.addReason()}>
-          <PlusIcon />
+        <button className="add-handle add-reason" title="Add a reason (Alt+S)" aria-label="Add reason" onClick={() => {if(editor.doc.children(node.id).some(v=>v.kind==='reason'))setChoice(node.id);else editor.addReason();}}>
+          Reason
         </button>
-        <button className="add-handle add-objection" title="Add an objection (Alt+O)" aria-label="Add objection" onClick={() => editor.addObjection()}>
-          <MinusIcon />
+        <button className="add-handle add-objection" title="Add an objection (Alt+O)" aria-label={reply ? "Reply to objection" : "Add objection"} onClick={() => editor.addObjection()}>
+          {reply ? 'Reply' : 'Objection'}
         </button>
       </div>
+      {choice===node.id && <div className="premise-choice" role="dialog" aria-label="How does this reason support the claim?" style={{left:left+w/2,top:top+h+48}}>
+        <b>How does this reason support the claim?</b>
+        <button onClick={()=>{setChoice(null);editor.addReason();}}>It stands on its own</button>
+        {editor.doc.children(node.id).filter(v=>v.kind==='reason').map(g=><button key={g.id} onClick={()=>{setChoice(null);const id=editor.doc.addPremise(g.id);if(id){editor.select([id]);editor.startEditing(id);}}}>Only together with {editor.doc.children(g.id).map(v=>v.text||'untitled premise').join(' + ')}</button>)}
+        <button onClick={()=>setChoice(null)}>Cancel</button>
+      </div>}
     </>
   );
 }
@@ -188,10 +196,3 @@ function PlusIcon() {
   );
 }
 
-function MinusIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
-      <path d="M2.5 7h9" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-    </svg>
-  );
-}

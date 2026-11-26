@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { Editor } from './editor';
 import { domMeasure } from './layout/measure';
 import { canvasContextMenu, cmd, commandForKey, nodeContextMenu } from './commands';
+import { ArgumentWorkspace } from './ui/ArgumentWorkspace';
 import { Canvas } from './ui/Canvas';
 import { MenuBar } from './ui/MenuBar';
 import { ContextMenu } from './ui/Menu';
@@ -47,6 +48,16 @@ export function App() {
   useSyncExternalStore(editor.subscribe, editor.getVersion);
   const [menu, setMenu] = useState<{ kind: 'node' | 'canvas'; x: number; y: number } | null>(null);
   const [dialog, setDialog] = useState<'shortcuts' | 'about' | 'theme' | 'history' | 'share' | 'drive' | null>(editor.pendingJoin ? 'share' : null);
+  const [workspace,setWorkspace]=useState(false);
+  useEffect(() => {
+    const locate = () => {
+      const id = new URLSearchParams(location.hash.slice(1)).get('node');
+      if (id && editor.doc.has(id)) { editor.select([id]); editor.scrollIntoView(id); }
+    };
+    locate();
+    window.addEventListener('hashchange',locate);
+    return ()=>window.removeEventListener('hashchange',locate);
+  }, [editor.doc, editor.file.name]);
   const closeMenu = useCallback(() => setMenu(null), []);
 
   // Re-measure once web fonts are ready.
@@ -216,7 +227,7 @@ export function App() {
 
         <Dock editor={editor} />
 
-        <div className="corner-tools">
+        <div className="corner-tools"><div className="pill"><button style={{width:'auto',padding:'0 10px'}} aria-expanded={workspace} onClick={()=>setWorkspace(!workspace)}>Workspace</button></div>
           <div className="pill" role="toolbar" aria-label="Zoom">
             <button onClick={() => editor.zoomAt(1 / 1.2)} title="Zoom out (Ctrl+-)" aria-label="Zoom out">
               <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
@@ -245,6 +256,7 @@ export function App() {
           <div className={`toast toast-${editor.message.kind}`} role="status">{editor.message.text}</div>
         ) : null}
       </main>
+      {workspace && !presenting && <ArgumentWorkspace editor={editor} close={()=>setWorkspace(false)}/>}
       {editor.notesOpen && !presenting ? <NotesPanel editor={editor} /> : null}
       </div>
 

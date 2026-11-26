@@ -11,7 +11,7 @@ export function newId(): string {
 }
 
 const NODE_FIELDS: (keyof MapNode)[] = [
-  'id', 'kind', 'parent', 'order', 'text', 'implicit', 'collapsed', 'x', 'y', 'dx', 'dy', 'style', 'note', 'link',
+  'id', 'kind', 'parent', 'order', 'text', 'implicit', 'collapsed', 'x', 'y', 'dx', 'dy', 'style', 'note', 'link', 'w', 'h', 'stance', 'evidence', 'questions', 'review', 'sharedClaim', 'tray', 'passage', 'excerpt', 'challengesInference',
 ];
 
 /**
@@ -366,7 +366,14 @@ export class MapDoc {
   }
 
   setText(id: string, text: string): void {
-    if (this.get(id)?.text !== text) this.update(id, { text });
+    const node = this.get(id);
+    if (!node || node.text === text) return;
+    this.transact(() => {
+      this.update(id, { text });
+      if (node.sharedClaim) for (const other of this.all()) {
+        if (other.id !== id && other.sharedClaim === node.sharedClaim) this.update(other.id, { text });
+      }
+    });
   }
 
   toggleImplicit(ids: string[]): void {
@@ -535,6 +542,7 @@ export class MapDoc {
       implicit: n.implicit,
       collapsed: n.collapsed,
       style: n.style,
+      evidence: n.evidence, questions: n.questions, review: n.review, passage: n.passage, excerpt: n.excerpt,
       note: n.note,
       link: n.link,
       w: n.w,
@@ -559,7 +567,7 @@ export class MapDoc {
       this.put({
         id, kind: c.kind, parent, order: this.orderAfter(parent), text: c.text ?? '',
         implicit: c.implicit || undefined, collapsed: c.collapsed || undefined,
-        style: c.style, note: c.note, link: c.link,
+        style: c.style, note: c.note, link: c.link, evidence:c.evidence, questions:c.questions, review:c.review, passage:c.passage, excerpt:c.excerpt,
         ...(c.kind === 'sticky' && c.w ? { w: c.w, h: c.h } : {}),
         ...(c.stance && parent && isGroup(this.get(parent)) && this.get(parent)!.kind !== c.stance ? { stance: c.stance } : {}),
         ...extra,
@@ -653,7 +661,7 @@ export class MapDoc {
   }
 }
 
-export interface ClipNode {
+export interface ClipNode extends Pick<MapNode, 'evidence'|'questions'|'review'|'passage'|'excerpt'> {
   kind: MapNode['kind'];
   text: string;
   implicit?: boolean;
