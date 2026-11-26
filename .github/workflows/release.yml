@@ -14,7 +14,6 @@ on:
         default: ''
   push:
     tags: ['v*']
-    branches: ['release/0.3.1']
 
 permissions:
   contents: write
@@ -58,13 +57,10 @@ jobs:
           if-no-files-found: error
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v') || inputs.version != '' || github.event_name == 'push'
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.version != ''
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - id: version
-        run: echo "tag=v$(node -p \"require('./package.json').version\")" >> "$GITHUB_OUTPUT"
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
@@ -74,6 +70,6 @@ jobs:
           files: artifacts/*
           generate_release_notes: true
           # When run by hand, create the tag on the commit that was built.
-          tag_name: ${{ inputs.version != '' && format('v{0}', inputs.version) || (github.ref_type == 'tag' && github.ref_name) || steps.version.outputs.tag }}
-          name: ${{ inputs.version != '' && format('Argument Mapper {0}', inputs.version) || (github.ref_type == 'tag' && github.ref_name) || steps.version.outputs.tag }}
+          tag_name: ${{ inputs.version != '' && format('v{0}', inputs.version) || github.ref_name }}
+          name: ${{ inputs.version != '' && format('Argument Mapper {0}', inputs.version) || github.ref_name }}
           target_commitish: ${{ github.sha }}
