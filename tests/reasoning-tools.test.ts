@@ -22,7 +22,7 @@ it('accepts a proposed joint premise at its chosen group',()=>{
  const d=new MapDoc(),root=d.addRoot('C'),g=d.addGroup(root,'reason')!,id=d.addRoot('Second');suggest(d,id,'A',{kind:'joint',before:null,group:g.groupId});expect(decide(d,d.liveComments()[0].id,true)).toBe(true);expect(d.get(id)?.parent).toBe(g.groupId);
 });
 it('drafts joint reasons, an objection and its reply in branch order',()=>{
- const d=new MapDoc(),id=d.addRoot('C'),r=d.addGroup(id,'reason','one')!;d.addPremise(r.groupId,undefined,'two');const o=d.addGroup(id,'objection','cost')!;d.addGroup(o.premiseId,'objection','grant');d.addRoot('unrelated');const t=branchProse(d,id);expect(t).toContain('together) — one + two');expect(t.indexOf('cost')).toBeLessThan(t.indexOf('grant'));expect(t).not.toContain('unrelated');
+ const d=new MapDoc(),id=d.addRoot('C'),r=d.addGroup(id,'reason','one')!;d.addPremise(r.groupId,undefined,'two');const o=d.addGroup(id,'objection','cost')!;d.addGroup(o.premiseId,'objection','grant');d.addRoot('unrelated');const t=branchProse(d,id);expect(t).toContain('taken together: one; two');expect(t.indexOf('cost')).toBeLessThan(t.indexOf('grant'));expect(t).not.toContain('unrelated');
 });
 it('attaches a critique card as an ordinary persistent question',()=>{
  const d=new MapDoc(),id=d.addRoot('C');for(const cards of Object.values(critiqueCards))expect(cards.length).toBeGreaterThan(1);

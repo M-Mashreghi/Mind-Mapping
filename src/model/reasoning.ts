@@ -52,12 +52,15 @@ export function branchProse(doc:MapDoc,root:string){
     paragraphs.push(opening+node.text);
     for(const group of doc.children(id).filter(isGroup)){
       const premises=doc.children(group.id);
-      const label=group.kind==='reason'?'Supporting reason':'Objection';
-      paragraphs.push(label+(premises.length>1?' (these premises work together)':'')+' — '+premises.map(p=>p.text).join(' + '));
+      const reply=group.kind==='objection' && stanceOf(node,doc.get(node.parent))==='objection';
+      const statement=(p:MapNode)=>p.text.trim().replace(/[.!?؟]+$/u,'');
+      const introduction=reply?'In reply to this objection':group.kind==='objection'?'One objection is':'The supporting argument is';
+      if(premises.length===1)paragraphs.push(introduction+' that '+statement(premises[0])+'.');
+      else if(premises.length>1)paragraphs.push(introduction+' based on the following premises taken together: '+premises.map(statement).join('; ')+'.');
       for(const p of premises)if(doc.children(p.id).length)visit(p.id,group.kind==='objection'?'Discussion of the objection — ':'Further support or objections to — ');
     }
   }
-  visit(root,'Conclusion — ');return paragraphs.join('\n\n');
+  visit(root,'The conclusion is: ');return paragraphs.join('\n\n');
 }
 
 export function suggest(doc:MapDoc,id:string,author:string,proposal:Proposal){
