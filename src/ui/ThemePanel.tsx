@@ -20,12 +20,14 @@ function Choice<T extends string | number | boolean>({ value, options, onChange 
 }
 
 function ColorField({ label, value, fallback, onChange }: { label: string; value: string; fallback: string; onChange: (v: string) => void }) {
+  const color = value || fallback;
+  const hex = /^#[0-9a-f]{3}$/i.test(color) ? color.replace(/[0-9a-f]/gi, digit => digit + digit) : color;
   return (
-    <label className="color-field">
+    <div className="color-field">
       <span>{label}</span>
-      <input type="color" aria-label={label} value={value || fallback} onChange={(e) => onChange(e.target.value)} />
+      <input type="color" aria-label={label} value={hex} onChange={(e) => onChange(e.target.value)} />
       {value ? <button className="link-button" onClick={() => onChange('')}>Default</button> : <span className="muted">Default</span>}
-    </label>
+    </div>
   );
 }
 

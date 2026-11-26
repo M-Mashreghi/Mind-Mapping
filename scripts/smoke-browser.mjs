@@ -196,15 +196,15 @@ try {
     const snapshot = () => evaluate(`(() => {
       const props=['--bg','--reason-ink','--reason-fill','--reason-line','--objection-ink','--objection-fill','--objection-line','--root-ink','--root-fill','--root-line'];
       const style=getComputedStyle(document.querySelector('.canvas'));
-      return {actual:Array.from(document.querySelectorAll('.theme-body input[type=color]'),i=>i.value.toLowerCase()),expected:props.map(p=>style.getPropertyValue(p).trim().toLowerCase())};
+      const hex = value => /^#[0-9a-f]{3}$/i.test(value) ? value.replace(/[0-9a-f]/gi,c=>c+c) : value;
+      return {actual:Array.from(document.querySelectorAll('.theme-body input[type=color]'),i=>i.value.toLowerCase()),expected:props.map(p=>hex(style.getPropertyValue(p).trim().toLowerCase()))};
     })()`);
-    await until(async()=>{const view=await snapshot();if(view.actual.join()===view.expected.join())return true;
-      console.log(mode,JSON.stringify(view));return false;});
+    await until(async()=>{const view=await snapshot();return view.actual.join()===view.expected.join();});
 
   }
   await evaluate('window.argmapEditor.setTheme({reason:{...window.argmapEditor.doc.theme.reason,fill:"#123456"}})');
   await until(()=>evaluate('document.querySelectorAll(".theme-body input[type=color]")[2].value==="#123456"'));
-  await evaluate('document.querySelectorAll(".theme-body input[type=color]")[2].closest("label").querySelector("button").click()');
+  await evaluate('document.querySelectorAll(".theme-body input[type=color]")[2].closest(".color-field").querySelector("button").click()');
   await until(()=>evaluate('document.querySelectorAll(".theme-body input[type=color]")[2].value===getComputedStyle(document.querySelector(".canvas")).getPropertyValue("--reason-fill").trim() && !window.argmapEditor.doc.theme.reason.fill'));
   console.log('Chrome passed: all ten theme picker swatches match canvas defaults in light and dark, including custom/reset');
   console.log('Chrome passed: rectangle selection, multi-drag, join and right-click promotion');
