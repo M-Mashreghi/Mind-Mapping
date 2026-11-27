@@ -2895,13 +2895,15 @@ img.emoji {
   z-index: 8;
   visibility: hidden;
   box-sizing: border-box;
-  width: 212px;
+  width: max-content;
   max-width: calc(100% - 12px);
   max-height: calc(100% - 12px);
   overflow: auto;
-  display: grid;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
   gap: 6px;
-  padding: 10px 12px;
+  padding: 6px 8px;
   border: 1px solid var(--line);
   border-radius: 9px;
   background: var(--surface);
@@ -2909,10 +2911,11 @@ img.emoji {
   box-shadow: 0 3px 16px #0002;
   font-size: 13px;
 }
-.connector-controls label { display: grid; grid-template-columns: 52px minmax(32px,1fr) auto; align-items: center; gap: 5px; }
-.connector-controls input[type=range] { width: 100%; min-width: 0; }
-.connector-controls select { grid-column: span 2; }
-.connector-controls input[type=color] { width: 32px; }
-.connector-controls button { justify-self: end; }
+.connector-controls label, .connector-writing { display: inline-flex; align-items: center; gap: 4px; }
+.connector-controls input[type=range] { width: 54px; }
+.connector-controls input[type=color] { width: 28px; }
+.connector-controls button, .connector-controls select { font: inherit; cursor: pointer; }
+.connector-writing input { width: min(300px, 48vw); font: inherit; }
+.connection-label { font: 13px sans-serif; fill: var(--ink); stroke: var(--bg); stroke-width: 4; paint-order: stroke; pointer-events: auto; cursor: pointer; }
 .group.custom-bracket::before { display: none; }
 .styled-bracket { position: absolute; top: 0; left: 0; overflow: visible; pointer-events: none; }
