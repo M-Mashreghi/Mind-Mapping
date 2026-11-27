@@ -14,7 +14,7 @@ on:
         default: ''
   push:
     tags: ['v*']
-    branches: ['release/0.7.0']
+    branches: ['release/0.7.1']
 
 permissions:
   contents: write
@@ -58,7 +58,7 @@ jobs:
           if-no-files-found: error
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v') || inputs.version != '' || github.ref == 'refs/heads/release/0.7.0'
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.version != '' || github.ref == 'refs/heads/release/0.7.1'
     needs: build
     runs-on: ubuntu-latest
     steps:
@@ -71,6 +71,6 @@ jobs:
           files: artifacts/*
           generate_release_notes: true
           # When run by hand, create the tag on the commit that was built.
-          tag_name: ${{ inputs.version != '' && format('v{0}', inputs.version) || (github.ref == 'refs/heads/release/0.7.0' && 'v0.7.0') || github.ref_name }}
-          name: ${{ inputs.version != '' && format('Argument Mapper {0}', inputs.version) || (github.ref == 'refs/heads/release/0.7.0' && 'v0.7.0') || github.ref_name }}
+          tag_name: ${{ inputs.version != '' && format('v{0}', inputs.version) || (github.ref == 'refs/heads/release/0.7.1' && 'v0.7.1') || github.ref_name }}
+          name: ${{ inputs.version != '' && format('Argument Mapper {0}', inputs.version) || (github.ref == 'refs/heads/release/0.7.1' && 'v0.7.1') || github.ref_name }}
           target_commitish: ${{ github.sha }}
