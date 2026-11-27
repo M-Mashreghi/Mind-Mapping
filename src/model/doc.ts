@@ -11,7 +11,7 @@ export function newId(): string {
 }
 
 const NODE_FIELDS: (keyof MapNode)[] = [
-  'id', 'kind', 'parent', 'order', 'text', 'implicit', 'collapsed', 'x', 'y', 'dx', 'dy', 'style', 'note', 'link', 'w', 'h', 'stance', 'evidence', 'questions', 'review', 'sharedClaim', 'tray', 'passage', 'excerpt', 'challengesInference',
+  'id', 'kind', 'parent', 'order', 'text', 'implicit', 'collapsed', 'x', 'y', 'dx', 'dy', 'connector', 'style', 'note', 'link', 'w', 'h', 'stance', 'evidence', 'questions', 'review', 'sharedClaim', 'tray', 'passage', 'excerpt', 'challengesInference',
 ];
 
 /**
@@ -240,11 +240,11 @@ export class MapDoc {
     this.update(id, { link: link.trim() || undefined });
   }
 
-  addConnection(from: string, to: string): string | null {
+  addConnection(from: string, to: string, connector?: Connection['connector']): string | null {
     if (from === to || !this.has(from) || !this.has(to)) return null;
     if (this.allConnections().some((c) => (c.from === from && c.to === to) || (c.from === to && c.to === from))) return null;
     const id = newId();
-    this.transact(() => this.connections.set(id, { id, from, to }));
+    this.transact(() => this.connections.set(id, { id, from, to, ...(connector && {connector}) }));
     return id;
   }
 
@@ -569,8 +569,10 @@ export class MapDoc {
     };
     const included = new Set(top.flatMap(id => this.subtreeIds(id)));
     const links = new Map<string,string[]>();
+    const linkStyles = new Map<string,Record<string,NonNullable<Connection['connector']>>>();
     for (const c of this.allConnections()) if (included.has(c.from) && included.has(c.to)) {
       const targets = links.get(c.from) ?? [];
+      if (c.connector) linkStyles.set(c.from,{...linkStyles.get(c.from), [c.to]:c.connector});
       targets.push(c.to);
       links.set(c.from,targets);
     }
@@ -578,11 +580,12 @@ export class MapDoc {
       sourceId: n.id,
       joint: joint(n),
       linkedTargets: links.get(n.id),
+      linkedStyles: linkStyles.get(n.id),
       kind: n.kind,
       text: n.text,
       implicit: n.implicit,
       collapsed: n.collapsed,
-      style: n.style,
+      connector: n.connector, style: n.style,
       evidence: n.evidence, questions: n.questions, review: n.review, passage: n.passage, excerpt: n.excerpt,
       note: n.note,
       link: n.link,
@@ -605,15 +608,15 @@ export class MapDoc {
     const target = this.get(targetId);
     const pastedIds = new Map<string,string>();
     const jointGroups = new Map<string,string>();
-    const connections: [string,string][] = [];
+    const connections: [string,string,Connection['connector']][] = [];
     const insert = (c: ClipNode, parent: string | null, extra: Partial<MapNode> = {}): string => {
       const id = newId();
       if (c.sourceId) pastedIds.set(c.sourceId,id);
-      if (Array.isArray(c.linkedTargets)) for (const target of c.linkedTargets) connections.push([id,target]);
+      if (Array.isArray(c.linkedTargets)) for (const target of c.linkedTargets) connections.push([id,target,c.linkedStyles?.[target]]);
       this.put({
         id, kind: c.kind, parent, order: this.orderAfter(parent), text: c.text ?? '',
         implicit: c.implicit || undefined, collapsed: c.collapsed || undefined,
-        style: c.style, note: c.note, link: c.link, evidence:c.evidence, questions:c.questions, review:c.review, passage:c.passage, excerpt:c.excerpt,
+        connector: c.connector, style: c.style, note: c.note, link: c.link, evidence:c.evidence, questions:c.questions, review:c.review, passage:c.passage, excerpt:c.excerpt,
         ...(c.kind === 'sticky' && c.w ? { w: c.w, h: c.h } : {}),
         ...(c.stance && (!parent || (isGroup(this.get(parent)) && this.get(parent)!.kind !== c.stance)) ? { stance: c.stance } : {}),
         ...extra,
@@ -653,9 +656,9 @@ export class MapDoc {
           out.push(insert(c, claimId));
         }
       }
-      for (const [from,originalTarget] of connections) {
+      for (const [from,originalTarget,style] of connections) {
         const to = pastedIds.get(originalTarget);
-        if (to) this.addConnection(from,to);
+        if (to) this.addConnection(from,to,style);
       }
       if (isClaim(target) && target!.collapsed) this.update(target!.id, { collapsed: undefined });
     });
@@ -715,7 +718,7 @@ export class MapDoc {
   }
 }
 
-export interface ClipNode extends Pick<MapNode, 'evidence'|'questions'|'review'|'passage'|'excerpt'> {
+export interface ClipNode extends Pick<MapNode, 'connector'|'evidence'|'questions'|'review'|'passage'|'excerpt'> {
   kind: MapNode['kind'];
   text: string;
   implicit?: boolean;
@@ -729,6 +732,7 @@ export interface ClipNode extends Pick<MapNode, 'evidence'|'questions'|'review'|
   joint?: {id:string; kind:GroupKind; text:string};
   sourceId?: string;
   linkedTargets?: string[];
+  linkedStyles?: Record<string,NonNullable<Connection['connector']>>;
   children: ClipNode[];
 }
 

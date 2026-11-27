@@ -11,7 +11,8 @@ function labelWidth(text: string): number {
   }
   return (labelCtx ? labelCtx.measureText(text).width : text.length * 7.5) + 14;
 }
-import { Connection, LineStyle, MapNode, STICKY, Theme, isConclusion, stanceOf } from '../model/types';
+import { connectorStroke } from '../model/connector';
+import { ConnectorStyle, Connection, LineStyle, MapNode, STICKY, Theme, isConclusion, stanceOf } from '../model/types';
 import { boxStyle, textStyle, themeVars } from '../theme';
 import { attach, dropLabel } from '../model/workspace';
 import { NodeEditor } from './NodeEditor';
@@ -304,6 +305,9 @@ export function Canvas({ editor, onContextMenu }: Props) {
   const matches = new Set(editor.find?.matches ?? []);
   const current = editor.find?.matches[editor.find.index];
   const connections = doc.allConnections();
+  const group = selection.length === 1 ? doc.get(editor.primary) : undefined;
+  const link = editor.selectedConnection ? doc.connections.get(editor.selectedConnection) : undefined;
+  const relation = link ?? (group?.kind === 'reason' || group?.kind === 'objection' ? group : undefined);
   const peers = editor.peers;
   const commentCounts = editor.showComments ? doc.commentCounts() : new Map<string, number>();
   const reactions = editor.showComments ? doc.reactionsByNode() : new Map<string, Map<string, string[]>>();
@@ -341,6 +345,9 @@ export function Canvas({ editor, onContextMenu }: Props) {
       onPointerLeave={() => editor.setCursor(null)}
     >
       {editor.presentation ? <style>{presentCss(editor)}</style> : null}
+      {relation && !editor.readOnly && !editor.presentation && !editing && !drag?.active && (
+        <ConnectorControls editor={editor} relation={relation} canvas={ref.current} />
+      )}
       {marquee && <div className="selection-marquee" style={{
         left:Math.min(marquee.x,marquee.startX),top:Math.min(marquee.y,marquee.startY),
         width:Math.abs(marquee.x-marquee.startX),height:Math.abs(marquee.y-marquee.startY)
@@ -356,10 +363,10 @@ export function Canvas({ editor, onContextMenu }: Props) {
             </marker>
           </defs>
           <marker id="arrow-link" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-            <path d="M0 0L10 5L0 10z" className="arrow-link" />
+            <path d="M0 0L10 5L0 10z" fill="context-stroke" />
           </marker>
           {layout.edges.map((edge) => (
-            <EdgePath key={edge.from} edge={edge} lineStyle={theme.lineStyle} from={offsetFor(edge.from)} to={offsetFor(edge.to)} />
+            <EdgePath connector={nodes.get(edge.from)?.connector} key={edge.from} edge={edge} lineStyle={theme.lineStyle} from={offsetFor(edge.from)} to={offsetFor(edge.to)} />
           ))}
           {layout.edges.map((edge) => (
             <EdgePath key={`hit-${edge.from}`} hit edge={edge} lineStyle={theme.lineStyle} from={offsetFor(edge.from)} to={offsetFor(edge.to)} />
@@ -450,6 +457,39 @@ export function Canvas({ editor, onContextMenu }: Props) {
   );
 }
 
+function ConnectorControls({editor, relation, canvas}: {editor: Editor; relation: MapNode | Connection; canvas: HTMLDivElement | null}) {
+  const custom = relation.connector;
+  const stroke = connectorStroke(custom);
+  const free = 'from' in relation;
+  const variable = free ? '--ink-3' : relation.kind === 'reason' ? '--reason-line' : '--objection-line';
+  const themeColor = canvas && getComputedStyle(canvas).getPropertyValue(variable).trim();
+  const color = stroke.stroke ?? themeColor?.replace(/^#([0-9a-f])([0-9a-f])([0-9a-f])$/i,'#$1$1$2$2$3$3') ?? '#000000';
+  const theme = editor.doc.theme;
+  const width = stroke.strokeWidth ?? (free ? 1.5 : theme.lineWidth * (theme.mapStyle === 'bold' ? 1.6 : 1));
+  const change = (patch?: ConnectorStyle) => {
+    if (editor.readOnly) return;
+    const connector = patch ? {...custom,...patch} : undefined;
+    if (free) {
+      const current = editor.doc.connections.get(relation.id);
+      if (!current) return;
+      const {connector: previous, ...base} = current;
+      editor.doc.transact(() => editor.doc.connections.set(current.id, connector ? {...base,connector} : base));
+    } else editor.doc.update(relation.id,{connector});
+  };
+  return <div className="connector-controls" role="group" aria-label="Connector style"
+    onPointerDown={e=>e.stopPropagation()} onPointerUp={e=>e.stopPropagation()} onDoubleClick={e=>e.stopPropagation()}
+    onKeyDown={e=>e.stopPropagation()} onContextMenu={e=>e.stopPropagation()}>
+    <strong>Line</strong>
+    <label>Color <input type="color" value={color} onChange={e=>change({color:e.target.value})}/></label>
+    <label>Width <input type="range" min="0.5" max="12" step="0.1" value={width} onChange={e=>change({width:Number(e.target.value)})}/> {Number(width.toFixed(1))} px</label>
+    <label>Opacity <input type="range" min="10" max="100" value={Math.round((stroke.opacity ?? 1)*100)} onChange={e=>change({opacity:Number(e.target.value)/100})}/> {Math.round((stroke.opacity ?? 1)*100)}%</label>
+    <label>Pattern <select value={custom?.pattern ?? (free ? 'dashed' : 'solid')} onChange={e=>change({pattern:e.target.value as ConnectorStyle['pattern']})}>
+      <option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option>
+    </select></label>
+    <button disabled={!custom} onClick={()=>change()}>Reset</button>
+  </div>;
+}
+
 type Off = { dx: number; dy: number };
 
 /** Presenting: claims not reached yet are faint, the current one is ringed. */
@@ -487,7 +527,7 @@ function ConnectionPath({ conn, a, b, oa, ob, selected, annotation }: { annotati
   return (
     <g data-from={conn.from} data-to={conn.to} data-connection-id={conn.id} className={`connection${selected ? ' selected' : ''}`}>
       <path className="connection-hit" d={d} />
-      <path className="connection-line" d={d} strokeDasharray={annotation ? "6 5" : undefined} markerEnd={annotation ? undefined : "url(#arrow-link)"} />
+      <path className="connection-line" style={connectorStroke(conn.connector)} d={d} strokeDasharray={annotation ? "6 5" : undefined} markerEnd={annotation ? undefined : "url(#arrow-link)"} />
     </g>
   );
 }
@@ -499,13 +539,13 @@ export function edgePath(x1: number, y1: number, x2: number, y2: number, style: 
   return `M${x1} ${y1} C${x1} ${my} ${x2} ${my} ${x2} ${y2}`;
 }
 
-function EdgePath({ edge, from, to, lineStyle, hit }: { edge: Edge; from: Off; to: Off; lineStyle: LineStyle; hit?: boolean }) {
+function EdgePath({ edge, from, to, lineStyle, hit, connector }: { connector?: ConnectorStyle; edge: Edge; from: Off; to: Off; lineStyle: LineStyle; hit?: boolean }) {
   const x1 = edge.x1 + from.dx, y1 = edge.y1 + from.dy;
   const x2 = edge.x2 + to.dx, y2 = edge.y2 + to.dy;
   const d = edgePath(x1, y1, x2, y2, lineStyle);
   // A wide, invisible copy of the line: click it to pick the group, double-click to write on it.
   if (hit) return <path className="edge-hit" data-node-id={edge.from} d={d} />;
-  return <path className={`edge edge-${edge.kind}`} data-edge={edge.from} d={d} />;
+  return <path className={`edge edge-${edge.kind}`} style={connectorStroke(connector)} data-edge={edge.from} d={d} />;
 }
 
 function EdgeLabel({ id, kind, x, y, text, own, editing, selected, editor }: {
@@ -581,7 +621,7 @@ function GroupView({ editor, box, node, offset, selected, dropTarget }: { editor
   return (
     <div
       data-node-id={box.id}
-      className={`group group-${box.kind}${selected ? ' selected' : ''}${dropTarget ? ' drop-target' : ''}${offset.dx || offset.dy ? ' moving' : ''}`}
+      className={`group group-${box.kind}${node.connector ? ' custom-bracket' : ''}${selected ? ' selected' : ''}${dropTarget ? ' drop-target' : ''}${offset.dx || offset.dy ? ' moving' : ''}`}
       style={{
         left: box.x + offset.dx, top: box.y + offset.dy, width: box.w, height: box.h,
         ...(st.fill ? { background: st.fill } : {}), ...(st.border ? { borderColor: st.border } : {}),
@@ -590,6 +630,9 @@ function GroupView({ editor, box, node, offset, selected, dropTarget }: { editor
       aria-label={box.kind === 'reason' ? 'Reason' : 'Objection'}
     >
       <StanceSwitch editor={editor} node={node} />
+      {node.connector && <svg className="styled-bracket" width={box.w} height={18} aria-hidden="true">
+        <path d={`M2 13 Q2 4 11 4 H${box.w-11} Q${box.w-2} 4 ${box.w-2} 13`} className={`edge edge-${box.kind}`} style={connectorStroke(node.connector)} />
+      </svg>}
       <span className="group-label">{box.kind === 'reason' ? 'Reason' : 'Objection'}</span>
     </div>
   );

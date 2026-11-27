@@ -187,6 +187,17 @@ try {
       && e.doc.get(g.third).parent===g.id && e.layout.boxes.get(g.id).w<g.width;})()`));
   console.log('Chrome passed: dragging two co-premises out shrinks a three-premise bracket');
 
+  const bracket = await evaluate(`(() => {const path=document.querySelector('.edge-hit[data-node-id="${groupDrop.id}"]');
+    const p=path.getPointAtLength(path.getTotalLength()*0.75).matrixTransform(path.getScreenCTM());
+    return {x:p.x,y:p.y};})()`);
+  await send('Input.dispatchMouseEvent',{type:'mousePressed',...bracket,button:'left',buttons:1,clickCount:1});
+  await send('Input.dispatchMouseEvent',{type:'mouseReleased',...bracket,button:'left',clickCount:1});
+  await until(()=>evaluate('!!document.querySelector(".connector-controls select")'));
+  await evaluate(`(() => { const input=document.querySelector('.connector-controls select'); input.value='dotted'; input.dispatchEvent(new Event('change',{bubbles:true})); })()`);
+  await until(()=>evaluate(`document.querySelector('[data-edge="${groupDrop.id}"]').style.strokeLinecap==='round' && !!document.querySelector('.custom-bracket .styled-bracket')`));
+  await evaluate('document.querySelector(".connector-controls button").click()');
+  await until(()=>evaluate('!document.querySelector(".custom-bracket")'));
+  console.log('Chrome passed: select bracket, apply dotted style to stem and bracket, reset');
   await evaluate('window.dispatchEvent(new Event("argmap:theme"))');
   await until(()=>evaluate('Array.from(document.querySelectorAll(".tabs button")).some(b=>b.textContent==="Color")'));
   await clickLabel('Color');

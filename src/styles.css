@@ -2889,3 +2889,26 @@ img.emoji {
 .multi-selection strong {white-space:nowrap;font-size:12px}
 .multi-selection button,.multi-selection select {font:inherit;color:var(--ink);background:var(--surface-2);border:0;border-radius:5px;padding:4px 6px;cursor:pointer}
 .multi-selection select {max-width:115px}
+
+.connector-controls {
+  position: absolute;
+  z-index: 8;
+  top: 12px;
+  left: 12px;
+  max-width: calc(100% - 24px);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel, Canvas);
+  color: var(--ink);
+  font-size: 13px;
+}
+.connector-controls label { display: inline-flex; align-items: center; gap: 4px; }
+.connector-controls input[type=range] { width: 65px; }
+.connector-controls input[type=color] { width: 30px; }
+.group.custom-bracket::before { display: none; }
+.styled-bracket { position: absolute; top: 0; left: 0; overflow: visible; pointer-events: none; }
