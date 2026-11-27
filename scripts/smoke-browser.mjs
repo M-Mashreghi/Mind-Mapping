@@ -193,6 +193,25 @@ try {
   await send('Input.dispatchMouseEvent',{type:'mousePressed',...connectorPoint,button:'left',buttons:1,clickCount:1});
   await send('Input.dispatchMouseEvent',{type:'mouseReleased',...connectorPoint,button:'left',clickCount:1});
   await until(()=>evaluate('!!document.querySelector(".connector-controls select")'));
+  const panelAtAnchor = (point) => evaluate(`(() => {
+    const p=${JSON.stringify(point)}, rect=document.querySelector('.connector-controls').getBoundingClientRect();
+    const area=document.querySelector('.canvas').getBoundingClientRect();
+    const dx=Math.max(0,rect.left-p.x,p.x-rect.right),dy=Math.max(0,rect.top-p.y,p.y-rect.bottom);
+    return dx<=14 && dy<=12 && rect.left>=area.left && rect.top>=area.top &&
+      rect.right<=area.right && rect.bottom<=area.bottom && getComputedStyle(document.querySelector('.connector-controls')).visibility==='visible';
+  })()`);
+  await until(()=>panelAtAnchor(connectorPoint));
+  const corner = await evaluate(`(() => {
+    const e=window.argmapEditor, original={...e.view};
+    const area=document.querySelector('.canvas').getBoundingClientRect();
+    const source=e.screenToMap(${connectorPoint.x}-area.left,${connectorPoint.y}-area.top);
+    const x=area.width-12,y=area.height-12,zoom=1.35;
+    e.setView({x:x-source.x*zoom,y:y-source.y*zoom,zoom});
+    return {original,point:{x:area.left+x,y:area.top+y}};
+  })()`);
+  await until(()=>panelAtAnchor(corner.point));
+  await evaluate('window.argmapEditor.setView('+JSON.stringify(corner.original)+')');
+  await until(()=>panelAtAnchor(connectorPoint));
   await evaluate(`(() => { const input=document.querySelector('.connector-controls select'); input.value='dotted'; input.dispatchEvent(new Event('change',{bubbles:true})); })()`);
   await until(()=>evaluate(`document.querySelector('[data-edge="${groupDrop.id}"]').style.strokeLinecap==='round' && !!document.querySelector('.custom-bracket .styled-bracket')`));
   await evaluate('document.querySelector(".connector-controls button").click()');

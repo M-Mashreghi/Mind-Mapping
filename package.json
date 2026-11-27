@@ -1,7 +1,7 @@
 {
   "name": "argument-mapper",
   "productName": "Argument Mapper",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Free, open-source argument mapping for the desktop: reasons, objections, co-premises and live LAN collaboration.",
   "license": "MIT",
   "author": "Argument Mapper contributors",

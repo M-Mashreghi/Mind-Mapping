@@ -1,6 +1,6 @@
 # Argument Mapper
 
-Click a connecting line or the bracket above its premises to open **Line**. Set its color, width, opacity, and solid, dashed, or dotted pattern. The stem and bracket form one relationship. Note links and free arrows can be styled individually too. **Reset** restores the map defaults. The styles are saved in the map and included in image and PDF exports.
+Click a connecting line or the bracket above its premises to open **Line style** beside the point you clicked. Set its color, width, opacity, and solid, dashed, or dotted pattern. The stem and bracket form one relationship. Note links and free arrows can be styled individually too. **Reset** restores the map defaults. The styles are saved in the map and included in image and PDF exports.
 
 Free, open-source argument mapping for the desktop. Lay out a claim, the reasons that
 support it and the objections against it, with co-premises, hidden assumptions and

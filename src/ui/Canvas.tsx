@@ -18,6 +18,8 @@ import { attach, dropLabel } from '../model/workspace';
 import { NodeEditor } from './NodeEditor';
 import { Emoji } from './Emoji';
 
+type LineAnchor = { id: string; bracket: boolean; x: number; y: number };
+
 interface Props {
   editor: Editor;
   onContextMenu: (kind: 'node' | 'canvas', x: number, y: number) => void;
@@ -69,6 +71,7 @@ interface PanState {
 
 export function Canvas({ editor, onContextMenu }: Props) {
   const ref = useRef<HTMLDivElement>(null);
+  const [lineAnchor,setLineAnchor] = useState<LineAnchor | null>(null);
   const [wire,setWire]=useState<{source:string;x:number;y:number;target?:string}|null>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
   const dragRef = useRef<DragState | null>(null);
@@ -127,6 +130,16 @@ export function Canvas({ editor, onContextMenu }: Props) {
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (e.button !== 0) return;
+    const hit = (e.target as Element).closest<HTMLElement | SVGElement>('.connection, .edge-hit, .group, .edge-label');
+    if (hit) {
+      const id = hit.dataset.connectionId ?? hit.dataset.nodeId;
+      const bounds = hit.getBoundingClientRect();
+      if (id) setLineAnchor({
+        id, bracket: hit.classList.contains('group'),
+        x: bounds.width ? (e.clientX - bounds.left) / bounds.width : 0.5,
+        y: bounds.height ? (e.clientY - bounds.top) / bounds.height : 0.5,
+      });
+    }
     const handle=(e.target as Element).closest<HTMLElement>('[data-wire]');
     if(handle && !editor.readOnly && !editor.presentation){
       const p=local(e),source=handle.dataset.wire!;
@@ -346,7 +359,7 @@ export function Canvas({ editor, onContextMenu }: Props) {
     >
       {editor.presentation ? <style>{presentCss(editor)}</style> : null}
       {relation && !editor.readOnly && !editor.presentation && !editing && !drag?.active && (
-        <ConnectorControls editor={editor} relation={relation} canvas={ref.current} />
+        <ConnectorControls editor={editor} relation={relation} canvas={ref.current} anchor={lineAnchor} />
       )}
       {marquee && <div className="selection-marquee" style={{
         left:Math.min(marquee.x,marquee.startX),top:Math.min(marquee.y,marquee.startY),
@@ -457,10 +470,39 @@ export function Canvas({ editor, onContextMenu }: Props) {
   );
 }
 
-function ConnectorControls({editor, relation, canvas}: {editor: Editor; relation: MapNode | Connection; canvas: HTMLDivElement | null}) {
+function ConnectorControls({editor, relation, canvas, anchor}: {editor: Editor; relation: MapNode | Connection; anchor: LineAnchor | null; canvas: HTMLDivElement | null}) {
   const custom = relation.connector;
   const stroke = connectorStroke(custom);
   const free = 'from' in relation;
+  const panel = useRef<HTMLDivElement>(null);
+  const {view, layout} = editor;
+  useLayoutEffect(() => {
+    const el = panel.current;
+    if (!canvas || !el) return;
+    const id = CSS.escape(relation.id);
+    const at = anchor?.id === relation.id ? anchor : null;
+    const selector = free ? `.connection[data-connection-id="${id}"] .connection-hit`
+      : at?.bracket ? `.group[data-node-id="${id}"]` : `.edge-hit[data-node-id="${id}"]`;
+    const target = canvas.querySelector(selector);
+    if (!target) { el.style.visibility = 'hidden'; return; }
+    function place() {
+      if (!canvas || !el || !target) return;
+      const area = canvas.getBoundingClientRect(), box = target.getBoundingClientRect();
+      const x = box.left - area.left + box.width * (at?.x ?? 0.5);
+      const y = box.top - area.top + (at?.bracket ? Math.min(box.height, 5 * view.zoom) : box.height * (at?.y ?? 0.5));
+      const w = el.offsetWidth, h = el.offsetHeight;
+      const left = x + 12 + w <= area.width - 6 ? x + 12 : x - w - 12;
+      const top = y + 10 + h <= area.height - 6 ? y + 10 : y - h - 10;
+      el.style.left = Math.max(6, Math.min(left, area.width - w - 6)) + 'px';
+      el.style.top = Math.max(6, Math.min(top, area.height - h - 6)) + 'px';
+      el.style.visibility = x >= 0 && y >= 0 && x <= area.width && y <= area.height ? 'visible' : 'hidden';
+    }
+    place();
+    const observer = new ResizeObserver(place);
+    observer.observe(canvas);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [canvas, relation.id, free, anchor, view.x, view.y, view.zoom, layout]);
   const variable = free ? '--ink-3' : relation.kind === 'reason' ? '--reason-line' : '--objection-line';
   const themeColor = canvas && getComputedStyle(canvas).getPropertyValue(variable).trim();
   const color = stroke.stroke ?? themeColor?.replace(/^#([0-9a-f])([0-9a-f])([0-9a-f])$/i,'#$1$1$2$2$3$3') ?? '#000000';
@@ -476,10 +518,10 @@ function ConnectorControls({editor, relation, canvas}: {editor: Editor; relation
       editor.doc.transact(() => editor.doc.connections.set(current.id, connector ? {...base,connector} : base));
     } else editor.doc.update(relation.id,{connector});
   };
-  return <div className="connector-controls" role="group" aria-label="Connector style"
+  return <div ref={panel} className="connector-controls" role="group" aria-label="Connector style"
     onPointerDown={e=>e.stopPropagation()} onPointerUp={e=>e.stopPropagation()} onDoubleClick={e=>e.stopPropagation()}
     onKeyDown={e=>e.stopPropagation()} onContextMenu={e=>e.stopPropagation()}>
-    <strong>Line</strong>
+    <strong>Line style</strong>
     <label>Color <input type="color" value={color} onChange={e=>change({color:e.target.value})}/></label>
     <label>Width <input type="range" min="0.5" max="12" step="0.1" value={width} onChange={e=>change({width:Number(e.target.value)})}/> {Number(width.toFixed(1))} px</label>
     <label>Opacity <input type="range" min="10" max="100" value={Math.round((stroke.opacity ?? 1)*100)} onChange={e=>change({opacity:Number(e.target.value)/100})}/> {Math.round((stroke.opacity ?? 1)*100)}%</label>
