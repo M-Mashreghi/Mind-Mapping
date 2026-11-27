@@ -324,6 +324,7 @@ export async function buildSvg(input: SvgInput): Promise<{ svg: string; width: n
     const p1 = exit(a, bb.x + bb.w / 2, bb.y + bb.h / 2);
     const p2 = exit(bb, a.x + a.w / 2, a.y + a.h / 2);
     parts.push(`<path d="M${p1.x} ${p1.y} L${p2.x} ${p2.y}" fill="none" ${lineAttributes(conn.connector,c.ink3,1.5,'6 5')}${a.kind === 'sticky' || bb.kind === 'sticky' ? '' : ' marker-end="url(#al)"'}/>`);
+    if (conn.label) parts.push(`<text x="${(p1.x+p2.x)/2}" y="${(p1.y+p2.y)/2-5}" text-anchor="middle" direction="${isRtl(conn.label) ? 'rtl' : 'ltr'}" font-family="sans-serif" font-size="13" fill="${c.ink}" stroke="${c.bg}" stroke-width="4" paint-order="stroke">${esc(conn.label)}</text>`);
   }
 
   parts.push('</g></svg>');

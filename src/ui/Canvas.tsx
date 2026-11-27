@@ -359,7 +359,7 @@ export function Canvas({ editor, onContextMenu }: Props) {
     >
       {editor.presentation ? <style>{presentCss(editor)}</style> : null}
       {relation && !editor.readOnly && !editor.presentation && !editing && !drag?.active && (
-        <ConnectorControls editor={editor} relation={relation} canvas={ref.current} anchor={lineAnchor} />
+        <ConnectorControls key={relation.id} editor={editor} relation={relation} canvas={ref.current} anchor={lineAnchor} />
       )}
       {marquee && <div className="selection-marquee" style={{
         left:Math.min(marquee.x,marquee.startX),top:Math.min(marquee.y,marquee.startY),
@@ -474,6 +474,19 @@ function ConnectorControls({editor, relation, canvas, anchor}: {editor: Editor; 
   const custom = relation.connector;
   const stroke = connectorStroke(custom);
   const free = 'from' in relation;
+  const [writing, setWriting] = useState(false);
+  const writeButton = useRef<HTMLButtonElement>(null);
+  const label = free ? relation.label ?? '' : relation.text;
+  const writeLabel = (value: string) => {
+    if (editor.readOnly) return;
+    if (!free) { editor.doc.setText(relation.id,value); return; }
+    const current = editor.doc.connections.get(relation.id);
+    if (current) editor.doc.transact(() => editor.doc.connections.set(current.id,{...current,label:value}));
+  };
+  const finishWriting = () => {
+    setWriting(false);
+    requestAnimationFrame(() => writeButton.current?.focus());
+  };
   const panel = useRef<HTMLDivElement>(null);
   const {view, layout} = editor;
   useLayoutEffect(() => {
@@ -521,7 +534,12 @@ function ConnectorControls({editor, relation, canvas, anchor}: {editor: Editor; 
   return <div ref={panel} className="connector-controls" role="group" aria-label="Connector style"
     onPointerDown={e=>e.stopPropagation()} onPointerUp={e=>e.stopPropagation()} onDoubleClick={e=>e.stopPropagation()}
     onKeyDown={e=>e.stopPropagation()} onContextMenu={e=>e.stopPropagation()}>
-    <strong>Line style</strong>
+    {writing ? <form className="connector-writing" onSubmit={e=>{e.preventDefault();finishWriting();}}>
+      <input autoFocus dir="auto" aria-label="Line text" placeholder="Write on this line…" value={label}
+        onChange={e=>writeLabel(e.target.value)} onKeyDown={e=>{if(e.key==='Escape') finishWriting();}} />
+      <button type="submit">Done</button>
+    </form> : <>
+    <button type="button" ref={writeButton} onClick={()=>setWriting(true)}>✎ Write</button>
     <label>Color <input type="color" value={color} onChange={e=>change({color:e.target.value})}/></label>
     <label>Width <input type="range" min="0.5" max="12" step="0.1" value={width} onChange={e=>change({width:Number(e.target.value)})}/> {Number(width.toFixed(1))} px</label>
     <label>Opacity <input type="range" min="10" max="100" value={Math.round((stroke.opacity ?? 1)*100)} onChange={e=>change({opacity:Number(e.target.value)/100})}/> {Math.round((stroke.opacity ?? 1)*100)}%</label>
@@ -529,6 +547,7 @@ function ConnectorControls({editor, relation, canvas, anchor}: {editor: Editor; 
       <option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option>
     </select></label>
     <button disabled={!custom} onClick={()=>change()}>Reset</button>
+    </>}
   </div>;
 }
 
@@ -570,6 +589,8 @@ function ConnectionPath({ conn, a, b, oa, ob, selected, annotation }: { annotati
     <g data-from={conn.from} data-to={conn.to} data-connection-id={conn.id} className={`connection${selected ? ' selected' : ''}`}>
       <path className="connection-hit" d={d} />
       <path className="connection-line" style={connectorStroke(conn.connector)} d={d} strokeDasharray={annotation ? "6 5" : undefined} markerEnd={annotation ? undefined : "url(#arrow-link)"} />
+      {conn.label && <text className="connection-label" x={(p1.x+p2.x)/2} y={(p1.y+p2.y)/2-5}
+        textAnchor="middle" direction={/^[\s]*[\u0590-\u08ff]/.test(conn.label) ? 'rtl' : 'ltr'}>{conn.label}</text>}
     </g>
   );
 }

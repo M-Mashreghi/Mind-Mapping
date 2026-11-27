@@ -214,8 +214,26 @@ try {
   await until(()=>panelAtAnchor(connectorPoint));
   await evaluate(`(() => { const input=document.querySelector('.connector-controls select'); input.value='dotted'; input.dispatchEvent(new Event('change',{bubbles:true})); })()`);
   await until(()=>evaluate(`document.querySelector('[data-edge="${groupDrop.id}"]').style.strokeLinecap==='round' && !!document.querySelector('.custom-bracket .styled-bracket')`));
-  await evaluate('document.querySelector(".connector-controls button").click()');
+  await evaluate('Array.from(document.querySelectorAll(".connector-controls button")).find(b=>b.textContent==="Reset").click()');
   await until(()=>evaluate('!document.querySelector(".custom-bracket")'));
+  await until(()=>evaluate(`(() => {
+    const bar=document.querySelector('.connector-controls'), items=Array.from(bar.children);
+    return items.every(el=>Math.abs(el.getBoundingClientRect().top-items[0].getBoundingClientRect().top)<10);
+  })()`));
+  const writeOnLine = async value => {
+    await evaluate('document.querySelector(".connector-controls button").click()');
+    await until(()=>evaluate('document.activeElement?.getAttribute("aria-label")==="Line text"'));
+    await send('Input.insertText',{text:value});
+    await clickLabel('Done');
+  };
+  await writeOnLine('چون');
+  await until(()=>evaluate(`window.argmapEditor.doc.get("${groupDrop.id}").text==="چون" && Array.from(document.querySelectorAll('.edge-label')).some(el=>el.textContent==='چون')`));
+  const linkId=await evaluate(`(() => {const e=window.argmapEditor,id=e.doc.addConnection("${groupDrop.first}","${groupDrop.second}");e.selectConnection(id);return id;})()`);
+  await until(()=>evaluate('!!document.querySelector(".connection.selected")'));
+  await writeOnLine('منبع');
+  await until(()=>evaluate(`document.querySelector('.connection.selected .connection-label')?.textContent==='منبع' &&
+    window.argmapEditor.doc.toFile().connections.find(c=>c.id==="${linkId}").label==='منبع'`));
+  console.log('Chrome passed: horizontal toolbar and Persian labels on both connector types');
   console.log('Chrome passed: select bracket, apply dotted style to stem and bracket, reset');
   await evaluate('window.dispatchEvent(new Event("argmap:theme"))');
   await until(()=>evaluate('Array.from(document.querySelectorAll(".tabs button")).some(b=>b.textContent==="Color")'));
