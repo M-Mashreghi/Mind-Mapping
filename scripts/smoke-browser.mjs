@@ -187,11 +187,11 @@ try {
       && e.doc.get(g.third).parent===g.id && e.layout.boxes.get(g.id).w<g.width;})()`));
   console.log('Chrome passed: dragging two co-premises out shrinks a three-premise bracket');
 
-  const bracket = await evaluate(`(() => {const path=document.querySelector('.edge-hit[data-node-id="${groupDrop.id}"]');
+  const connectorPoint = await evaluate(`(() => {const path=document.querySelector('.edge-hit[data-node-id="${groupDrop.id}"]');
     const p=path.getPointAtLength(path.getTotalLength()*0.75).matrixTransform(path.getScreenCTM());
     return {x:p.x,y:p.y};})()`);
-  await send('Input.dispatchMouseEvent',{type:'mousePressed',...bracket,button:'left',buttons:1,clickCount:1});
-  await send('Input.dispatchMouseEvent',{type:'mouseReleased',...bracket,button:'left',clickCount:1});
+  await send('Input.dispatchMouseEvent',{type:'mousePressed',...connectorPoint,button:'left',buttons:1,clickCount:1});
+  await send('Input.dispatchMouseEvent',{type:'mouseReleased',...connectorPoint,button:'left',clickCount:1});
   await until(()=>evaluate('!!document.querySelector(".connector-controls select")'));
   await evaluate(`(() => { const input=document.querySelector('.connector-controls select'); input.value='dotted'; input.dispatchEvent(new Event('change',{bubbles:true})); })()`);
   await until(()=>evaluate(`document.querySelector('[data-edge="${groupDrop.id}"]').style.strokeLinecap==='round' && !!document.querySelector('.custom-bracket .styled-bracket')`));
