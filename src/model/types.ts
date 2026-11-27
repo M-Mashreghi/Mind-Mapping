@@ -28,6 +28,7 @@ export interface NodeStyle {
  *  - A sticky note is always free-standing (parent === null).
  */
 export interface MapNode {
+  connector?: ConnectorStyle;
   id: string;
   kind: NodeKind;
   parent: string | null;
@@ -68,7 +69,15 @@ export interface MapNode {
 }
 
 /** A free-form arrow between any two nodes, outside the argument structure. */
+export interface ConnectorStyle {
+  color?: string;
+  width?: number;
+  opacity?: number;
+  pattern?: 'solid' | 'dashed' | 'dotted';
+}
+
 export interface Connection {
+  connector?: ConnectorStyle;
   id: string;
   from: string;
   to: string;

@@ -1,3 +1,5 @@
+import { connectorStroke } from '../model/connector';
+import type { ConnectorStyle } from '../model/types';
 import { LayoutResult, placeLineLabels } from '../layout/layout';
 import { Connection, MapNode, Theme, isConclusion, stanceOf } from '../model/types';
 import { boxStyle, textStyle } from '../theme';
@@ -194,7 +196,7 @@ export async function buildSvg(input: SvgInput): Promise<{ svg: string; width: n
     `<defs>${fonts ? `<style>${fonts}</style>` : ''}`,
     `<marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="${c.reason}"/></marker>`,
     `<marker id="ao" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="${c.objection}"/></marker>`,
-    `<marker id="al" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="${c.ink3}"/></marker>`,
+    `<marker id="al" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="context-stroke"/></marker>`,
     `<filter id="sh" x="-10%" y="-10%" width="120%" height="140%"><feDropShadow dx="0" dy="1" stdDeviation="1.2" flood-opacity="0.12"/></filter>`,
     `<filter id="paper" x="-10%" y="-10%" width="120%" height="130%"><feDropShadow dx="0" dy="5" stdDeviation="4" flood-color="#3c2d00" flood-opacity="0.3"/></filter>`,
     `<linearGradient id="sticky" x1="0" y1="0" x2="0.08" y2="1"><stop offset="0" stop-color="#fff7b8"/><stop offset="0.55" stop-color="#fff19a"/><stop offset="1" stop-color="#fbe77e"/></linearGradient>`,
@@ -202,6 +204,11 @@ export async function buildSvg(input: SvgInput): Promise<{ svg: string; width: n
   );
   if (input.background !== false) parts.push(`<rect width="100%" height="100%" fill="${c.bg}"/>`);
   parts.push(`<g transform="translate(${ox} ${oy})">`);
+
+  function lineAttributes(style: ConnectorStyle | undefined, color: string, width: number, dash = 'none') {
+    const st = connectorStroke(style);
+    return `stroke="${esc(st.stroke ?? color)}" stroke-width="${st.strokeWidth ?? width}" opacity="${st.opacity ?? 1}" stroke-dasharray="${st.strokeDasharray ?? dash}" stroke-linecap="${st.strokeLinecap ?? 'butt'}"`;
+  }
 
   // Reasons and objections: a bracket over their co-premises
   for (const box of layout.boxes.values()) {
@@ -211,14 +218,14 @@ export async function buildSvg(input: SvgInput): Promise<{ svg: string; width: n
     const stroke = n?.style?.border || (r ? c.reasonLine : c.objectionLine);
     const left = box.x + 2, right = box.x + box.w - 2, top = box.y + 4, bottom = box.y + 13, rr = 9;
     parts.push(
-      `<path d="M${left} ${bottom} A${rr} ${rr} 0 0 1 ${left + rr} ${top} H${right - rr} A${rr} ${rr} 0 0 1 ${right} ${bottom}" fill="none" stroke="${stroke}" stroke-width="${edgeW}"/>`,
+      `<path d="M${left} ${bottom} A${rr} ${rr} 0 0 1 ${left + rr} ${top} H${right - rr} A${rr} ${rr} 0 0 1 ${right} ${bottom}" fill="none" ${lineAttributes(n?.connector, stroke, edgeW)}/>`,
     );
   }
 
   // Lines from each claim down to its reasons and objections
   for (const e of layout.edges) {
     const color = e.kind === 'reason' ? c.reasonLine : c.objectionLine;
-    parts.push(`<path d="${edgePath(e.x1, e.y1, e.x2, e.y2, theme.lineStyle)}" fill="none" stroke="${color}" stroke-width="${edgeW}"/>`);
+    parts.push(`<path d="${edgePath(e.x1, e.y1, e.x2, e.y2, theme.lineStyle)}" fill="none" ${lineAttributes(byId.get(e.from)?.connector,color,edgeW)}/>`);
   }
 
   // Words on the lines, on a patch of background so the line stops behind them
@@ -316,7 +323,7 @@ export async function buildSvg(input: SvgInput): Promise<{ svg: string; width: n
     };
     const p1 = exit(a, bb.x + bb.w / 2, bb.y + bb.h / 2);
     const p2 = exit(bb, a.x + a.w / 2, a.y + a.h / 2);
-    parts.push(`<path d="M${p1.x} ${p1.y} L${p2.x} ${p2.y}" fill="none" stroke="${c.ink3}" stroke-width="1.5" stroke-dasharray="6 5"${a.kind === 'sticky' || bb.kind === 'sticky' ? '' : ' marker-end="url(#al)"'}/>`);
+    parts.push(`<path d="M${p1.x} ${p1.y} L${p2.x} ${p2.y}" fill="none" ${lineAttributes(conn.connector,c.ink3,1.5,'6 5')}${a.kind === 'sticky' || bb.kind === 'sticky' ? '' : ' marker-end="url(#al)"'}/>`);
   }
 
   parts.push('</g></svg>');
